@@ -13,13 +13,14 @@ use Pod::Usage;
 use File::Copy;
 
 my $mendeliandir = '/net/grc/vol1/mendelian_projects/mendelian_analysis/references';
-my ($rawgenodir, $genotypechip, $refpop, $pheno, $familyedits, $interimdir, $outdir, $help);
+my ($rawgenodir, $genotypechip, $refpop, $pheno, $model, $familyedits, $interimdir, $outdir, $help);
 
 GetOptions(
 	'rawgenodir=s' => \$rawgenodir, 
 	'chip=s' => \$genotypechip, 
 	'refpop=s' => \$refpop,
-	'pheno=s' => \$pheno, 
+	'pheno=s' => \$pheno,
+	'model=s' => \$model, 
 	'familyedits:s' => \$familyedits, 
 	'interimdir=s' => \$interimdir,
 	'outdir=s' => \$outdir,
@@ -39,6 +40,8 @@ if (!defined $rawgenodir) {
 	pod2usage(-exitval=>2, -verbose=>1, -message => "$0: --interimdir not defined\n");
 } elsif (!defined $outdir) {
 	pod2usage(-exitval=>2, -verbose=>1, -message => "$0: --outdir not defined\n");
+} elsif (!defined $model) {
+	pod2usage(-exitval=>2, -verbose=>1, -message => "$0: --model not defined\n");
 } 
 
 
@@ -131,9 +134,16 @@ if (defined $familyedits) {
 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
 }
 
+
 # create a default model file if one doesn't already exist
 if (! -e "$outdir/$pheno.model") {
-	`echo '$pheno 0.05 0,0,1.0 Recessive_(q=0.05,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
+	if ($model =~ /dominant/i) {
+		`echo '$pheno 0.001 0,0.95,1.0 Dominant_(q=0.001,_f=0,0.95,1.0)' | cat > $outdir/$pheno.model`;
+	} elsif ($model =~ /recessive/i) {
+		`echo '$pheno 0.005 0,0,1.0 Recessive_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
+	} else {
+		`echo '$pheno 0.005 0,0,1.0 Generic_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
+	}
 }
 
 
@@ -222,6 +232,7 @@ sub remove_trailing_slash_dir {
 }
 
 
+# perl ~/bin/linkage_scripts/plink2merlin.pl --rawgenodir /net/grc/vol1/mendelian_projects/pastor_uwcmg_et_1/sample_qc/PLINK_100413_0958 --chip ExomeChip --refpop EUR --pheno et --familyedits et.pedchanges.txt --outdir /net/grc/vol1/mendelian_projects/pastor_uwcmg_et_1/ngs_analysis/jessica/linkage/merlin_input --interimdir interim_files
 
 
 
@@ -263,6 +274,10 @@ perl B<plink2merlin.pl> I<[options]>
 =item B<--pheno> I<name of phenotype>
 
 	name of phenotype for this project (files will use this as a prefix)
+
+=item B<--model> I<dominant|recessive>
+
+	generate a template Merlin .model file for linkage analysis
 
 =item B<--familyedits> F<filename>
 
@@ -348,6 +363,7 @@ This script assumes the following files are present in the current directory.
 		--chip ExomeChip
 		--refpop EUR
 		--pheno pheno
+		--model dominant
 		--familyedits pheno.pedchanges.txt
 		--interimdir /net/grc/vol1/mendelian_projects/myphenotype/ngs_analysis/linkage/temp
 		--outdir /net/grc/vol1/mendelian_projects/myphenotype/ngs_analysis/linkage/merlin
