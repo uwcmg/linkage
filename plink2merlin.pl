@@ -49,13 +49,13 @@ $rawgenodir = remove_trailing_slash_dir($rawgenodir);
 $outdir = remove_trailing_slash_dir($outdir);
 $interimdir = remove_trailing_slash_dir($interimdir);
 
+my ($updatecMfile, $refdatadir);
 
 
 print "\n";
 print "... using $genotypechip linkage markers and frequencies\n";	
-my ($updatecMfile, $reffreqdir);
 if ($genotypechip =~ /ExomeChip/i) {
-	$reffreqdir = "$mendeliandir/ExomeChipLinkage/freqs";
+	$refdatadir = "$mendeliandir/ExomeChipLinkage";
 	if (system("cut -f1,7 $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map | sort -k1 | uniq > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
 		die "Can't extract haldane values from $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map: $?";
 	}
@@ -107,22 +107,33 @@ close $raw_map_handle;
 close $update_rsid_handle;
 
 
-print "... updating PLINK files, extracting variants with rsIDs, updating genetic maps\n";
+print "... updating PLINK files, extracting polymorphic (MAF>=0.01) sites with rsIDs and call rate >= 95%, updating genetic maps\n";
 # update raw genotype files with rsIDs and create new PLINK files with only those variants
 `plink --file $rawgenodir/$rawgenostem --update-map $interimdir/update_rsIDs.txt --update-name --make-bed --out $interimdir/$pheno.allvar`;
 `plink --bfile $interimdir/$pheno.allvar --extract $interimdir/rsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.allrsIDs`;
 
 # update PLINK files with genetic map information
 `plink --bfile $interimdir/$pheno.allrsIDs --update-map $interimdir/$updatecMfile --update-cm --make-bed --out $interimdir/$pheno.haldane`;
-# verify: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
+# verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
+
+# do some basic QC
+# minimum 95% genotyping rate --geno 0.05
+# minimum MAF>= 0.01 in the entire set of subjects; mostly to exclude monomorphic markers --maf 0.01 --nonfounders
+`plink --bfile $interimdir/$pheno.haldane --geno 0.05 --make-bed --out $interimdir/$pheno.callrate95`;
+`plink --bfile $interimdir/$pheno.callrate95 --maf 0.01 --nonfounders --make-bed --out $interimdir/$pheno.polymorphic`;
 
 # update family ID, phenotype, parental information based on files
-`plink --bfile $interimdir/$pheno.haldane --update-ids $pheno.updateFID.txt --make-bed --out $interimdir/$pheno.updateFID`;
+`plink --bfile $interimdir/$pheno.polymorphic --update-ids $pheno.updateFID.txt --make-bed --out $interimdir/$pheno.updateFID`;
 `plink --bfile $interimdir/$pheno.updateFID --update-parents $pheno.updateparents.txt --make-bed --out $interimdir/$pheno.updateparents`;
 
+# flip alleles in genotype file to match the 1000 Genomes reference file
+makefliplist("$pheno.updateparents.bim", $refdatadir);
+`plink --bfile $interimdir/$pheno.updateparents --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $pheno.flipped`;
+
 # do mendelian error check and zero out all probematic genotypes
-`plink --bfile $interimdir/$pheno.updateparents --me 1 1 --set-me-missing --missing-phenotype 0 --recode --out $interimdir/$pheno.updateparents.me1-1`;
+`plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --missing-phenotype 0 --recode --out $interimdir/$pheno.updateparents.me1-1`;
 copy("$interimdir/$pheno.updateparents.me1-1.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.map to $interimdir/$pheno.merlin.map\n";
+
 
 # add in any extra ancestors and exclude people if desired
 if (defined $familyedits) {
@@ -159,7 +170,7 @@ for (my $i=1; $i<=22; $i++) {
 	`cut -f1-3 $interimdir/$pheno.merlin.chr$i.map > $outdir/$pheno.chr$i.map`;
 	
 	# create frequency file
-	create_frqfile($reffreqdir, $refpop, $i);
+	create_frqfile($refdatadir, $refpop, $i);
 	# allele flipping to account for different strands
 
 	# create .dat file
@@ -167,11 +178,106 @@ for (my $i=1; $i<=22; $i++) {
 	`perl -ane \'print \"M \$F[1]\\n\";\' $interimdir/$pheno.merlin.chr$i.map >> $outdir/$pheno.chr$i.dat`;
 }
 
+print "Merlin format files $pheno.chr*.map $pheno.chr*.ped $pheno.chr*.freq $pheno.chr*.dat $pheno.model are ready in $outdir.\n";
+print "$pheno.model may need to be edited depending on your model of inheritance\n\n";
+
+
+
+# create job submission script to run linkage
+open (my $submit_handle, ">", "$outdir/sublinkage.sh") or die "Cannot write to $outdir/sublinkage.sh: $?.\n";
+print $submit_handle "#$ -S /bin/bash\n";
+print $submit_handle "#$ -t 1-22\n";
+print $submit_handle "#$ -o .\n";
+print $submit_handle "#$ -e .\n";
+print $submit_handle "#$ -cwd\n\n";
+print $submit_handle "merlin -d $pheno.chr\${SGE_TASK_ID}.dat -p $pheno.chr\${SGE_TASK_ID}.ped -m $pheno.chr\${SGE_TASK_ID}.map -f $pheno.chr\${SGE_TASK_ID}.freq --model $pheno.model --pdf > $pheno.chr\${SGE_TASK_ID}.merlin.out\n";
+
+print $submit_handle "### in case you need to manually re-run linkage on one of the chromosomes:\n";
+for (my $i=1; $i<=22; $i++) {
+	print $submit_handle "## merlin -d $pheno.chr$i.dat -p $pheno.chr$i.ped -m $pheno.chr$i.map -f $pheno.chr$i.freq --model $pheno.model --pdf > $pheno.chr$i.merlin.out\n";
+}
+close $submit_handle;
+
+print "To run linkage: qsub $outdir/sublinkage.sh\n";
+
+
+
+
+
+
+
+
+################################################################################################################
+############################################# Subfunctions #####################################################
+################################################################################################################
+
+sub remove_trailing_slash_dir {
+	my $dirname = $_[0];
+	$dirname =~ s/[\/|\\]$//;
+	if (! -e $dirname) {
+		die "$dirname does not exist\n";
+	}
+	return $dirname;
+}
+
+sub makefliplist {
+	my ($bimfile, $refdatadir) = @_;	
+
+	my %ref_alleles;
+	for (my $chr=1; $chr<=22; $chr++) {
+		open (my $ref_allele_handle, "$refdatadir/freqs/grid$chr.freqs") or die "Cannot read $refdatadir/freqs/grid$chr.freqs: $?.\n";
+		while (<$ref_allele_handle>) {
+			$_ =~ s/\s+$//;					# Remove line endings
+			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_); 
+			$ref_alleles{$rsID}{'ref'} = $ref;
+			$ref_alleles{$rsID}{'alt'} = $alt;
+		}
+		close $ref_allele_handle;
+	}
+	
+	open (my $fliplist_handle, ">", "$interimdir/rsIDs.toflip.txt") or die "Cannot write to $interimdir/rsIDs.toflip.txt: $?.\n";
+	open (my $ambiguouslist_handle, ">", "$interimdir/rsIDs.toexclude.txt") or die "Cannot write to $interimdir/rsIDs.toexclude.txt: $?.\n";
+	open (my $bim_handle, "$interimdir/$bimfile") or die "Cannot read $interimdir/$bimfile: $?.\n";
+	while (<$bim_handle>) {
+		$_ =~ s/\s+$//;					# Remove line endings
+		my ($chr, $rsID, $cM, $b37, $a1, $a2) = split("\t", $_);
+		my $action = needsflip($a1, $a2, $ref_alleles{$rsID}{'ref'}, $ref_alleles{$rsID}{'alt'});
+		if ($action eq 'flip') {
+			print $fliplist_handle "$rsID\n";
+		} elsif ($action eq 'ambiguous' || $action eq 'monomorphic') {
+			print $ambiguouslist_handle "$rsID\n";
+		} elsif ($action eq 'weird') {
+			print STDERR "$rsID on chr$chr is not ambiguous (AT or GC SNP) but doesn't need to be flipped either.\n";
+			print $ambiguouslist_handle "$rsID\n";
+		}
+	}
+	close $bim_handle;	
+	close $ambiguouslist_handle;	
+	close $fliplist_handle;
+}
+
+sub needsflip {
+	my ($a1, $a2, $ref, $alt) = @_;
+	my %flipallele = ('A'=>'T', 'C'=>'G', 'G'=>'C', 'T'=>'A', '0' => '0'); 			# switch the strand of the genotype
+
+	my $action = 'weird';
+	if ("$a1$a2" =~ '0') {
+		$action = 'monomorphic';
+	} elsif ("$a1$a2" eq 'AT' || "$a1$a2" eq 'TA' || "$a1$a2" eq 'GC' || "$a1$a2" eq 'CG') {
+		$action = 'ambiguous';
+	} elsif ("$a1$a2" =~ /$ref/ && "$a1$a2" =~ /$alt/) {
+		$action = 'nochange';
+	} elsif ("$a1$a2" =~ /$flipallele{$ref}/ && "$a1$a2" =~ /$flipallele{$alt}/) {
+		$action = 'flip';
+	}
+	return $action;
+}
+
 sub create_frqfile {
-	my ($reffreqdir, $refpop, $chr) = @_;
+	my $chr = $_[0];
 	
 	# determine column number for getting ref population's frequencies
-	my $header = `head -1 $reffreqdir/header.grid.freqs`;
+	my $header = `head -1 $refdatadir/freqs/header.grid.freqs`;
 	chomp $header;
 	my @cols = split("\t", $header);
 	my $refpopcol;
@@ -191,10 +297,10 @@ sub create_frqfile {
 	close $map_handle;
 	
 	open (my $merlinfrq_handle, ">", "$outdir/$pheno.chr$chr.freq") or die "Cannot write to $outdir/$pheno.chr$chr.freq: $?.\n";
-	open (my $input_handle, "$reffreqdir/grid$chr.freqs") or die "Cannot read $reffreqdir/grid$chr.freqs: $?.\n";
+	open (my $input_handle, "$refdatadir/freqs/grid$chr.freqs") or die "Cannot read $refdatadir/freqs/grid$chr.freqs: $?.\n";
 	while ( <$input_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
-		my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_);  	# order of population allele freqs: $AFR, $AMR, $ASN, $EUR, $OVERALL      
+		my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_);  	# order of population allele freqs: $AFR, $AMR, $ASN, $EUR, $OVERALL 
 		if (exists $inlinkage{$rsID}) {
 			my $reffreq = 1 - $popfreqs[$refpopcol-5];
 			print $merlinfrq_handle "M $rsID\nA $ref $reffreq\nA $alt $popfreqs[$refpopcol-5]\n";
@@ -205,34 +311,7 @@ sub create_frqfile {
 	close $merlinfrq_handle;
 }
 
-
-
-
-print "Merlin format files $pheno.chr*.map $pheno.chr*.ped $pheno.chr*.freq $pheno.chr*.dat $pheno.model are ready in $outdir.\n";
-print "$pheno.model may need to be edited depending on your model of inheritance\n\n";
-
-
-
-open (my $submit_handle, ">", "$outdir/sublinkage.sh") or die "Cannot write to $outdir/sublinkage.sh: $?.\n";
-for (my $i=1; $i<=22; $i++) {
-	print $submit_handle "merlin -d $pheno.chr$i.dat -p $pheno.chr$i.ped -m $pheno.chr$i.map -f $pheno.chr$i.freq --model $pheno.model --pdf > $pheno.chr$i.merlin.out\n\n";
-}
-close $submit_handle;
-
-print "Execute or edit $outdir/sublinkage.sh\n";
-
-
-sub remove_trailing_slash_dir {
-	my $dirname = $_[0];
-	$dirname =~ s/[\/|\\]$//;
-	if (! -e $dirname) {
-		die "$dirname does not exist\n";
-	}
-	return $dirname;
-}
-
-
-# perl ~/bin/linkage_scripts/plink2merlin.pl --rawgenodir /net/grc/vol1/mendelian_projects/pastor_uwcmg_et_1/sample_qc/PLINK_100413_0958 --chip ExomeChip --refpop EUR --pheno et --familyedits et.pedchanges.txt --outdir /net/grc/vol1/mendelian_projects/pastor_uwcmg_et_1/ngs_analysis/jessica/linkage/merlin_input --interimdir interim_files
+# perl ~/bin/linkage_scripts/plink2merlin.pl --rawgenodir /net/grc/vol1/mendelian_projects/pastor_uwcmg_et_1/sample_qc/PLINK_100413_0958 --chip ExomeChip --refpop EUR --pheno et --familyedits et.pedchanges.txt --model dominant --outdir /net/grc/vol1/mendelian_projects/pastor_uwcmg_et_1/ngs_analysis/jessica/linkage/merlin_input --interimdir interim_files
 
 
 
@@ -277,7 +356,7 @@ perl B<plink2merlin.pl> I<[options]>
 
 =item B<--model> I<dominant|recessive>
 
-	generate a template Merlin .model file for linkage analysis
+	generate a template Merlin .model file for linkage analysis (edit manually to customize parameters)
 
 =item B<--familyedits> F<filename>
 
