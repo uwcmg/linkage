@@ -56,13 +56,16 @@ print "\n";
 print "... using $genotypechip linkage markers and frequencies\n";	
 if ($genotypechip =~ /ExomeChip/i) {
 	$refdatadir = "$mendeliandir/ExomeChipLinkage";
-	if (system("cut -f1,7 $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map | sort -k1 | uniq > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
-		die "Can't extract haldane values from $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map: $?";
-	}
 	$updatecMfile = 'allchr.ExomeChip.updatecM.txt';
-	if (system("cut -f1 $interimdir/allchr.ExomeChip.updatecM.txt > $interimdir/rsIDvariantsonly.snplist")) {
-		die "Can't extract rsIDs with cM values from allchr.ExomeChip.updatecM.txt: $?";
-	}  
+	# if (system("cut -f1,7 $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map | sort -k1 | uniq > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
+	# 	die "Can't extract haldane values from $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map: $?";
+	# }
+	# if (system("cut -f1 $interimdir/allchr.ExomeChip.updatecM.txt > $interimdir/rsIDvariantsonly.snplist")) {
+		# die "Can't extract all SNPs with rsIDs: $?";
+	# }  
+	# if (system("cut -f2 $refdatadir/freqs/grid*.freqs > $interimdir/gridrsIDvariantsonly.snplist")) {
+	# 	die "Can't extract rsIDs for linkage analysis with cM values from $refdatadir/freqs/grid*.freqs: $?";
+	# }  
 } elsif ($genotypechip =~ /CytoChip/i) {
 	die "Don't have genetic maps in $mendeliandir for $genotypechip\n";
 }
@@ -100,6 +103,7 @@ while ( <$raw_map_handle> ) {
 	if ($varname =~ 'rs') {
 		my $rsid = $varname;
 		$rsid =~ s/exm-//;
+		$rsid =~ s/newrs/rs/;
 		print $update_rsid_handle "$varname\t$rsid\n";
 	}
 }
@@ -107,28 +111,33 @@ close $raw_map_handle;
 close $update_rsid_handle;
 
 
-print "... updating PLINK files, extracting polymorphic (MAF>=0.01) sites with rsIDs and call rate >= 95%, updating genetic maps\n";
+print "... creating PLINK files: extracting SNPs with rsIDs, updating genetic maps, extracting SNPs with call rate >= 95%\n";
 # update raw genotype files with rsIDs and create new PLINK files with only those variants
 `plink --file $rawgenodir/$rawgenostem --update-map $interimdir/update_rsIDs.txt --update-name --make-bed --out $interimdir/$pheno.allvar`;
 `plink --bfile $interimdir/$pheno.allvar --extract $interimdir/rsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.allrsIDs`;
 
 # update PLINK files with genetic map information
 `plink --bfile $interimdir/$pheno.allrsIDs --update-map $interimdir/$updatecMfile --update-cm --make-bed --out $interimdir/$pheno.haldane`;
-# verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
+### verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
 
-# do some basic QC
-# minimum 95% genotyping rate --geno 0.05
-# minimum MAF>= 0.01 in the entire set of subjects; mostly to exclude monomorphic markers --maf 0.01 --nonfounders
-`plink --bfile $interimdir/$pheno.haldane --geno 0.05 --make-bed --out $interimdir/$pheno.callrate95`;
-`plink --bfile $interimdir/$pheno.callrate95 --maf 0.01 --nonfounders --make-bed --out $interimdir/$pheno.polymorphic`;
+# do some basic QC: minimum 95% genotyping rate
+`plink --bfile $interimdir/$pheno.haldane --geno 0.05 --nonfounders --make-bed --out $interimdir/$pheno.callrate95`;
 
+print "... creating PLINK files: updating family information\n";
 # update family ID, phenotype, parental information based on files
-`plink --bfile $interimdir/$pheno.polymorphic --update-ids $pheno.updateFID.txt --make-bed --out $interimdir/$pheno.updateFID`;
+`plink --bfile $interimdir/$pheno.callrate95 --update-ids $pheno.updateFID.txt --make-bed --out $interimdir/$pheno.updateFID`;
 `plink --bfile $interimdir/$pheno.updateFID --update-parents $pheno.updateparents.txt --make-bed --out $interimdir/$pheno.updateparents`;
 
+print "... creating PLINK files: determining SNPs that need allele flipping\n";
+# extract only variants in the grid files
+`plink --bfile $interimdir/$pheno.updateparents --extract $interimdir/gridrsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.gridonly`;
+
+exit;
 # flip alleles in genotype file to match the 1000 Genomes reference file
-makefliplist("$pheno.updateparents.bim", $refdatadir);
-`plink --bfile $interimdir/$pheno.updateparents --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $pheno.flipped`;
+makefliplist("$pheno.gridonly.bim", $refdatadir);
+`plink --bfile $interimdir/$pheno.gridonly --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $interimdir/$pheno.flipped`;
+
+exit;
 
 # do mendelian error check and zero out all probematic genotypes
 `plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --missing-phenotype 0 --recode --out $interimdir/$pheno.updateparents.me1-1`;
@@ -224,6 +233,7 @@ sub makefliplist {
 	my ($bimfile, $refdatadir) = @_;	
 
 	my %ref_alleles;
+	my ($grid_nvar, $reject_nvar, $flip_nvar) = (0, 0, 0);
 	for (my $chr=1; $chr<=22; $chr++) {
 		open (my $ref_allele_handle, "$refdatadir/freqs/grid$chr.freqs") or die "Cannot read $refdatadir/freqs/grid$chr.freqs: $?.\n";
 		while (<$ref_allele_handle>) {
@@ -231,6 +241,7 @@ sub makefliplist {
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_); 
 			$ref_alleles{$rsID}{'ref'} = $ref;
 			$ref_alleles{$rsID}{'alt'} = $alt;
+			$grid_nvar++;
 		}
 		close $ref_allele_handle;
 	}
@@ -241,19 +252,27 @@ sub makefliplist {
 	while (<$bim_handle>) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($chr, $rsID, $cM, $b37, $a1, $a2) = split("\t", $_);
+		if ($chr > 22) {
+			last;						# only handling autosomal chromosomes for now
+		}
 		my $action = needsflip($a1, $a2, $ref_alleles{$rsID}{'ref'}, $ref_alleles{$rsID}{'alt'});
 		if ($action eq 'flip') {
 			print $fliplist_handle "$rsID\n";
+			$flip_nvar++;
 		} elsif ($action eq 'ambiguous' || $action eq 'monomorphic') {
 			print $ambiguouslist_handle "$rsID\n";
+			$reject_nvar++;
 		} elsif ($action eq 'weird') {
 			print STDERR "$rsID on chr$chr is not ambiguous (AT or GC SNP) but doesn't need to be flipped either.\n";
 			print $ambiguouslist_handle "$rsID\n";
+			$reject_nvar++;
 		}
 	}
 	close $bim_handle;	
 	close $ambiguouslist_handle;	
 	close $fliplist_handle;
+	
+	print "... ... out of $grid_nvar variants in linkage grid files, rejecting $reject_nvar (ambiguous/unknown reason) and flipping $flip_nvar variants\n";
 }
 
 sub needsflip {
