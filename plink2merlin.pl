@@ -21,7 +21,7 @@ GetOptions(
 	'refpop=s' => \$refpop,
 	'pheno=s' => \$pheno,
 	'model=s' => \$model, 
-	'familyedits:s' => \$familyedits, 
+	'familyedits=s' => \$familyedits, 
 	'interimdir=s' => \$interimdir,
 	'outdir=s' => \$outdir,
 	'help|?' => \$help,
@@ -42,27 +42,39 @@ if (!defined $rawgenodir) {
 	pod2usage(-exitval=>2, -verbose=>1, -message => "$0: --outdir not defined\n");
 } elsif (!defined $model) {
 	pod2usage(-exitval=>2, -verbose=>1, -message => "$0: --model not defined\n");
-} 
+} elsif (!defined $familyedits) {
+	pod2usage(-exitval=>2, -verbose=>1, -message => "$0: --familyedits not defined\n");
+}
 
 
 $rawgenodir = remove_trailing_slash_dir($rawgenodir);
 $outdir = remove_trailing_slash_dir($outdir);
 $interimdir = remove_trailing_slash_dir($interimdir);
 
-my ($updatecMfile, $refdatadir);
+my ($updatecMfile, $updatecMsnplist, $refdatadir);
 
 
 print "\n";
 print "Using $genotypechip markers and frequencies because you specified genotypechip=$genotypechip\n";	
 if ($genotypechip =~ /ExomeChip/i) {
 	$refdatadir = "$mendeliandir/ExomeChipLinkage";
-	$updatecMfile = 'allchr.ExomeChip.updatecM.txt';
-	# if (system("cut -f1,7 $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map | sort -k1 | uniq > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
-	# 	die "Can't extract haldane values from $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map: $?";
-	# }
-	# if (system("cut -f2 $refdatadir/freqs/grid*.freqs > $interimdir/gridrsIDvariantsonly.snplist")) {
-	# 	die "Can't extract rsIDs for linkage analysis with cM values from $refdatadir/freqs/grid*.freqs: $?";
-	# }  
+	$updatecMfile = 'allchr.ExomeChip.updatecM.nodups.txt';
+	$updatecMsnplist = 'allchr.ExomeChip.updatecM.snplist';
+	if (system("cut -f1,7 $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
+		die "Can't extract haldane values from $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map: $?";
+	}
+	if (system("cut -f1,7 $mendeliandir/ExomeChipLinkage/maps/grid*.map >> $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
+		die "Can't extract haldane values from $mendeliandir/ExomeChipLinkage/maps/grid*.map: $?";
+	}
+	if (system("sort -k1 $interimdir/allchr.ExomeChip.updatecM.txt | uniq > $interimdir/allchr.ExomeChip.updatecM.nodups.txt") != 0) {
+		die "Can't get only unique SNPs from $interimdir/allchr.ExomeChip.updatecM.txt: $?";
+	}
+	if (system("cut -f1 $interimdir/allchr.ExomeChip.updatecM.txt > $interimdir/allchr.ExomeChip.updatecM.snplist") != 0) {
+		die "Can't extract list of SNPs with haldane values from $interimdir/allchr.ExomeChip.updatecM.snplist: $?";
+	}
+	if (system("cut -f2 $refdatadir/freqs/grid*.freqs > $interimdir/gridrsIDvariantsonly.snplist")) {
+		die "Can't extract rsIDs for linkage analysis with cM values from $refdatadir/freqs/grid*.freqs: $?";
+	}  
 } elsif ($genotypechip =~ /CytoChip/i) {
 	die "Don't have genetic maps in $mendeliandir for $genotypechip\n";
 }
@@ -90,87 +102,90 @@ $rawgenostem = $rawgenomap;
 $rawgenostem =~ s/.map//;
 
 
-# # generate list of variants with rsIDs that are in the raw genotype data,
-# #   cleanup the name to be only the rsID itself, create update_rsIDS.txt
-# create_update_rsID_names($interimdir, $rawgenodir, $rawgenomap, $refdatadir);
-# 
-# 
-# print "... creating PLINK files: extracting SNPs with rsIDs, updating genetic maps, extracting SNPs with call rate >= 95%\n";
-# # update raw genotype files with rsIDs and create new PLINK files with only those variants
-# `plink --file $rawgenodir/$rawgenostem --update-map $interimdir/update_rsIDs.txt --update-name --make-bed --out $interimdir/$pheno.allvar`;
-# `plink --bfile $interimdir/$pheno.allvar --extract $interimdir/rsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.allrsIDs`;
-# 
-# # update PLINK files with genetic map information
-# `plink --bfile $interimdir/$pheno.allrsIDs --update-map $interimdir/$updatecMfile --update-cm --make-bed --out $interimdir/$pheno.haldane`;
-# ### verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
-# 
-# # do some basic QC: minimum 95% genotyping rate
-# `plink --bfile $interimdir/$pheno.haldane --geno 0.05 --nonfounders --make-bed --out $interimdir/$pheno.callrate95`;
-# 
-# print "... creating PLINK files: updating family information\n";
-# # update family ID, phenotype, parental information based on files
-# `plink --bfile $interimdir/$pheno.callrate95 --update-ids $pheno.updateFID.txt --make-bed --out $interimdir/$pheno.updateFID`;
-# `plink --bfile $interimdir/$pheno.updateFID --update-parents $pheno.updateparents.txt --make-bed --out $interimdir/$pheno.updateparents`;
-# 
-# print "... creating PLINK files: determining SNPs that need allele flipping\n";
-# # extract only variants in the grid files
-# `plink --bfile $interimdir/$pheno.updateparents --extract $interimdir/gridrsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.gridonly`;
-# 
-# # flip alleles in genotype file to match the 1000 Genomes reference file
-# makefliplist("$pheno.gridonly.bim", $refdatadir);
-# `plink --bfile $interimdir/$pheno.gridonly --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $interimdir/$pheno.flipped`;
-# 
-# # do mendelian error check and zero out all probematic genotypes
-# `plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --missing-phenotype 0 --recode --out $interimdir/$pheno.updateparents.me1-1`;
-# copy("$interimdir/$pheno.updateparents.me1-1.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.map to $interimdir/$pheno.merlin.map\n";
-# copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or die "Failed to copy $interimdir/$pheno.merlin.map to $outdir/$pheno.merlin.cm2bp.map\n";
-# 
-# 
-# # add in any extra ancestors and exclude people if desired
+# generate list of variants with rsIDs that are in the raw genotype data,
+#   cleanup the name to be only the rsID itself, create update_rsIDS.txt
+create_update_rsID_names($interimdir, $rawgenodir, $rawgenomap, $refdatadir);
+
+
+print "... creating PLINK files: extracting SNPs with rsIDs, updating genetic maps, extracting SNPs with call rate >= 95%\n";
+# update raw genotype files with rsIDs and create new PLINK files with only those variants
+`plink --file $rawgenodir/$rawgenostem --update-map $interimdir/update_rsIDs.txt --update-name --make-bed --out $interimdir/$pheno.gridvar`;
+`plink --bfile $interimdir/$pheno.gridvar --extract $interimdir/rsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.gridrsIDs`;
+
+# update PLINK files with genetic map information
+`plink --bfile $interimdir/$pheno.gridrsIDs --update-map $interimdir/$updatecMfile --update-cm --extract $interimdir/$updatecMsnplist --make-bed --out $interimdir/$pheno.haldane`;
+### verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
+
+# do some basic QC: minimum 95% genotyping rate
+`plink --bfile $interimdir/$pheno.haldane --geno 0.05 --nonfounders --make-bed --out $interimdir/$pheno.callrate95`;
+
+print "... creating PLINK files: updating family information\n";
+# update family ID, phenotype, parental information based on files
+`plink --bfile $interimdir/$pheno.callrate95 --update-ids $pheno.updateFID.txt --make-bed --out $interimdir/$pheno.updateFID`;
+`plink --bfile $interimdir/$pheno.updateFID --update-parents $pheno.updateparents.txt --make-bed --out $interimdir/$pheno.updateparents`;
+
+print "... creating PLINK files: determining SNPs that need allele flipping\n";
+# extract only variants in the grid files
+`plink --bfile $interimdir/$pheno.updateparents --extract $interimdir/gridrsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.gridonly`;
+
+# flip alleles in genotype file to match the 1000 Genomes reference file
+makefliplist("$pheno.gridonly.bim", $refdatadir);
+`plink --bfile $interimdir/$pheno.gridonly --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $interimdir/$pheno.flipped`;
+
+# do mendelian error check and zero out all probematic genotypes
+`plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --missing-phenotype 0 --recode --out $interimdir/$pheno.updateparents.me1-1`;
+# need to use --transpose so it is easier to sort by genetic position???
+
+
+copy("$interimdir/$pheno.updateparents.me1-1.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.map to $interimdir/$pheno.merlin.map\n";
+copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or die "Failed to copy $interimdir/$pheno.merlin.map to $outdir/$pheno.merlin.cm2bp.map\n";
+
+
+# add in any extra ancestors and exclude people if desired
 # if (defined $familyedits) {
-# 	print "\tPedigree edits provided ($familyedits); making changes.\n";
-# 	if (system("perl /nfs/home/jxchong/bin/linkage_scripts/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.ped --out $interimdir/$pheno.merlin.ped") != 0) {
-# 		die "Could not run: perl /nfs/home/jxchong/bin/linkage_scripts/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.`ped --out $interimdir/$pheno.merlin.ped: $?";
-# 	}
+	print "\tPedigree edits provided ($familyedits); making changes.\n";
+	if (system("perl /nfs/home/jxchong/bin/linkage_scripts/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.ped --out $interimdir/$pheno.merlin.ped") != 0) {
+		die "Could not run: perl /nfs/home/jxchong/bin/linkage_scripts/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.`ped --out $interimdir/$pheno.merlin.ped: $?";
+	}
 # } else {
 # 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
 # }
-# 
-# 
-# # create a default model file if one doesn't already exist
-# if (! -e "$outdir/$pheno.model") {
-# 	if ($model =~ /dominant/i) {
-# 		`echo '$pheno 0.001 0,0.95,1.0 Dominant_(q=0.001,_f=0,0.95,1.0)' | cat > $outdir/$pheno.model`;
-# 	} elsif ($model =~ /recessive/i) {
-# 		`echo '$pheno 0.005 0,0,1.0 Recessive_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
-# 	} else {
-# 		`echo '$pheno 0.005 0,0,1.0 Generic_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
-# 	}
-# }
-# 
-# 
-# # Output linkage file per chromosome
-# print "... making linkage files\n";
-# for (my $chr=1; $chr<=22; $chr++) {
-# 	print "\tfor chromosome $chr\n";
-# 	# create ped file
-# 	`plink --file $interimdir/$pheno.merlin --chr $chr --missing-phenotype 0 --recode --out $interimdir/$pheno.merlin.chr$chr`;
-# 	move("$interimdir/$pheno.merlin.chr$chr.ped", "$outdir/$pheno.chr$chr.ped") or die "Failed to move $interimdir/$pheno.merlin.chr$chr.ped to $outdir/$pheno.chr$chr.ped\n";
-# 	
-# 	# create map file 
-# 	`cut -f1-3 $interimdir/$pheno.merlin.chr$chr.map > $outdir/$pheno.chr$chr.map`;
-# 	
-# 	# create frequency file
-# 	create_frqfile($chr, $refdatadir, $refpop, $pheno, $outdir);
-# 	# allele flipping to account for different strands
-# 
-# 	# create .dat file
-# 	`echo 'A $pheno' > $outdir/$pheno.chr$chr.dat`;
-# 	`perl -ane \'print \"M \$F[1]\\n\";\' $interimdir/$pheno.merlin.chr$chr.map >> $outdir/$pheno.chr$chr.dat`;
-# }
-# 
-# print "Merlin format files $pheno.chr*.map $pheno.chr*.ped $pheno.chr*.freq $pheno.chr*.dat $pheno.model are ready in $outdir.\n";
-# print "$pheno.model may need to be edited depending on your model of inheritance\n\n";
+
+
+# create a default model file if one doesn't already exist
+if (! -e "$outdir/$pheno.model") {
+	if ($model =~ /dominant/i) {
+		`echo '$pheno 0.001 0,0.95,1.0 Dominant_(q=0.001,_f=0,0.95,1.0)' | cat > $outdir/$pheno.model`;
+	} elsif ($model =~ /recessive/i) {
+		`echo '$pheno 0.005 0,0,1.0 Recessive_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
+	} else {
+		`echo '$pheno 0.005 0,0,1.0 Generic_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
+	}
+}
+
+
+# Output linkage file per chromosome
+print "... making linkage files\n";
+for (my $chr=1; $chr<=22; $chr++) {
+	print "\tfor chromosome $chr\n";
+	# create ped file
+	`plink --file $interimdir/$pheno.merlin --chr $chr --missing-phenotype 0 --recode --out $interimdir/$pheno.merlin.chr$chr`;
+	move("$interimdir/$pheno.merlin.chr$chr.ped", "$outdir/$pheno.chr$chr.ped") or die "Failed to move $interimdir/$pheno.merlin.chr$chr.ped to $outdir/$pheno.chr$chr.ped\n";
+	
+	# create map file 
+	`cut -f1-3 $interimdir/$pheno.merlin.chr$chr.map > $outdir/$pheno.chr$chr.map`;
+	
+	# create frequency file
+	create_frqfile($chr, $refdatadir, $refpop, $pheno, $outdir);
+	# allele flipping to account for different strands
+
+	# create .dat file
+	`echo 'A $pheno' > $outdir/$pheno.chr$chr.dat`;
+	`perl -ane \'print \"M \$F[1]\\n\";\' $interimdir/$pheno.merlin.chr$chr.map >> $outdir/$pheno.chr$chr.dat`;
+}
+
+print "Merlin format files $pheno.chr*.map $pheno.chr*.ped $pheno.chr*.freq $pheno.chr*.dat $pheno.model are ready in $outdir.\n";
+print "$pheno.model may need to be edited depending on your model of inheritance\n\n";
 
 
 
@@ -382,7 +397,7 @@ plink2merlin.pl - Given the PLINK-formatted output by GenomeStudio, create Merli
 perl B<plink2merlin.pl> I<[options]>
 
 
-=head1 OPTIONS
+=head1 ARGUMENTS
 
 
 =over 4
@@ -409,7 +424,7 @@ perl B<plink2merlin.pl> I<[options]>
 
 =item B<--familyedits> F<filename>
 
-	formatted file with edits to be made manually to pedigree (adding missing ancestors, etc)
+	formatted file with final edits to be made manually to pedigree (adding missing ancestors, change phenotype)
 
 =item B<--interimdir> F<directory>	
 
@@ -447,31 +462,32 @@ This script assumes the following files are present in the current directory.
 	The first two columns are the old familyID and subjectID (as listed in the sample_qc/PLINK_*/.ped file).
 	The third and fourth columns are the new familyID and subjectID.
 	
-	Example:  Changes subjectA from family1 to family5 and subjectB from family2 to family6
+	Example:  Changes subjectA and subjectB from family1 to family5 and subjectC from family2 to family6
 	family1	subjectA	family5	subjectA
-	family2	subjectB	family6	subjectB
+	family1	subjectB	family5	subjectB
+	family2	subjectC	family6	subjectC
 
 =item F<pheno.updateparents.txt>
 
 	A tab-delimited, 4 column file used by PLINK's --update-parents option to update the parent IDs for the genotyped subjects.
 	This is necessary because the UWCMG pipeline doesn't output pedigree information with the raw genotypes.  
-	The first two columns are the old familyID and subjectID (as listed in the sample_qc/PLINK_*/.ped file).
-	The third and fourth columns are the new familyID and subjectID.
+	The first two columns are the familyID and subjectID as listed in the phenotype.updateFID.txt file
+	The third and fourth columns are the new paternal ID and maternalID.
 	
-	Example: Modify the genotype file to include two grandparents (1 and 2) with missing genotypes and to exclude subject 5:
-	family1	#1	0	0	1	0
-	family1	#2	0	0	2	0
-	family1	3	1	2	1	2
-	family1	4	1	2	1	2
-	family1	!5	1	2	2	0
+	family5	subjectA	dad	mom
+	family5	subjectB	dad mom
+	family5	dad	0	0
+	family5	mom	0	0
+	family6	subjectC	0	0
 
 =item F<familyedits (provided as argument with --familyedits)>
 
-	An optional tab-delimited, 6 column pedigree-format file that describes changes to be made to the genotype data during conversion. 
+	An tab-delimited, 6 column PLINK PED format file that describes changes to be made to the pedigree data during conversion.
 	This file contains the desired final pedigree information and uses ! to mark subjectIDs that should be excluded and # to mark
 	subjectIDs of phantom individuals to be added in (with genotypes listed as missing).  Assumes unique subjectIDs.
 	IMPORTANT: If an individual is not listed in this file, they will be excluded from the linkage analysis files.
 	NOTE: Merlin and PLINK assume unaffected=1, affected=2, missing=0 but PLINK files from UWCMG pipeline use missing=-9.
+		Remember to change the affected status in the last column to update phenotype information.
 	
 	Example: Modifies the genotype file to include two grandparents (1 and 2) with missing genotypes and exclude subject 5 completely:
 	family1	#1	0	0	1	0
