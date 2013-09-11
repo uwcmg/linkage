@@ -1,15 +1,15 @@
-PLINK2MERLIN(1)       User Contributed Perl Documentation      PLINK2MERLIN(1)
+# PLINK2MERLIN(1)       User Contributed Perl Documentation      PLINK2MERLIN(1)
 
 
 
-NAME
+## NAME
        plink2merlin.pl - Given the PLINK-formatted output by GenomeStudio,
        create Merlin-format linkage files.
 
-SYNOPSIS
+## SYNOPSIS
        perl plink2merlin.pl [options]
 
-ARGUMENTS
+## ARGUMENTS
        --rawgenodir directory
                    path to genotypes in PLINK format as outputted by UWCMG pipeline (likely under project/sample_qc/PLINK*)
 
@@ -37,11 +37,11 @@ ARGUMENTS
        --help help
                    print documentation
 
-CAVEATS
+## CAVEATS
        Remember to edit pheno.model file used by Merlin to customize model of
        inheritance, causal allele frequency, and penetrance.
 
-FILES
+## FILES
        This script assumes the following files are present in the current
        directory.
 
@@ -83,7 +83,7 @@ FILES
                    family1 4       1       2       1       2
                    family1 !5      1       2       2       0
 
-EXAMPLES
+## EXAMPLES
                perl plink2merlin.pl
                        --rawgenodir /net/grc/vol1/mendelian_projects/pheno/sample_qc/PLINK_100413_0958
                        --chip ExomeChip
@@ -94,12 +94,12 @@ EXAMPLES
                        --interimdir /net/grc/vol1/mendelian_projects/myphenotype/ngs_analysis/linkage/temp
                        --outdir /net/grc/vol1/mendelian_projects/myphenotype/ngs_analysis/linkage/merlin
 
-AUTHOR
+## AUTHOR
        Jessica Chong 
 
 
 
-perl v5.14.2                      2013-09-11                   PLINK2MERLIN(1)
+# perl v5.14.2                      2013-09-11                   PLINK2MERLIN(1)
 
 
 
@@ -109,20 +109,20 @@ perl v5.14.2                      2013-09-11                   PLINK2MERLIN(1)
 
 
 
-MERLIN2BED(1)         User Contributed Perl Documentation        MERLIN2BED(1)
+# MERLIN2BED(1)         User Contributed Perl Documentation        MERLIN2BED(1)
 
 
 
-NAME
+## NAME
        merlin2bed.pl - Given results from Merlin (using --markerNames
        --tabulate), output a BED file with coordinates of regions meeting a
        LOD score cutoff and a BED-like file (with extra columns) with more
        information on the regions.
 
-SYNOPSIS
+## SYNOPSIS
        perl merlin2bed.pl [options]
 
-ARGUMENTS
+## ARGUMENTS
        --cm2bp *merlin.cm2bp.map
                    PLINK map format to provide the physical positions of variants used in linkage analysis
 
@@ -144,7 +144,7 @@ ARGUMENTS
        --help help
                    print documentation
 
-NOTES
+## NOTES
        If plink2merlin.pl was used to generate the input files for Merlin,
        then there should be a file named <phenotype>.merlin.cm2bp.map in the
        same directory as the Merlin files and this file can be used for the
@@ -160,7 +160,7 @@ NOTES
        intersectBed -a myphenotype.exome.vcf -b linkageresults.bed -header >
        myphenotype.overlaplinkage.tsv
 
-EXAMPLES
+## EXAMPLES
                perl merlin2bed.pl
                        --cm2bp myphenotype.merlin.map
                        --merlintbl myphenotype.dominant.chr22-parametric.tbl
@@ -169,9 +169,9 @@ EXAMPLES
                        --outprefix temp
                        --allchr T
 
-AUTHOR
+## AUTHOR
        Jessica Chong 
 
 
-perl v5.14.2                      2013-09-11                     MERLIN2BED(1)
+# perl v5.14.2                      2013-09-11                     MERLIN2BED(1)
 
