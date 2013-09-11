@@ -3,7 +3,7 @@
 
 
 ## NAME
-       plink2merlin.pl - Given the PLINK-formatted output by GenomeStudio,        create Merlin-format linkage files.
+       plink2merlin.pl - Given the PLINK-formatted output by GenomeStudio, create Merlin-format linkage files.
 
 ## SYNOPSIS
        perl plink2merlin.pl [options]
