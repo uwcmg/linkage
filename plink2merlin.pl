@@ -320,6 +320,9 @@ sub makefliplist {
 	close $fliplist_handle;
 	
 	print "... ... out of $bim_nvar variants with genotypes and in the linkage grid files, rejecting $ambig_nvar ambiguous and $reject_nvar weird variants, and flipping $flip_nvar variants\n";
+	if ($bim_nvar < 4500) {
+		print "... ... WARNING: only $bim_nvar variants are in the linkage grid files and have genotypes.  Expect 4500-5500\n";
+	}
 }
 
 sub needsflip {

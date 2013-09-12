@@ -60,9 +60,9 @@ if ($allchr =~ /T/i || $allchr =~ /Y/i || $allchr =~ /1/) {
 close $output_handle;
 close $output_extended_handle;
 
+
 print "\nMax LOD seen is $maxlodseen on chromosome $maxlodchr\n";
-
-
+print "Created $outprefix.bed and $outprefix.detail.tsv to summarize results of linkage analysis.\n";
 
 
 
