@@ -475,7 +475,7 @@ This script assumes the following files are present in the current directory.
 
 	A tab-delimited, 4 column file used by PLINK's --update-parents option to update the parent IDs for the genotyped subjects.
 	This is necessary because the UWCMG pipeline doesn't output pedigree information with the raw genotypes.  
-	The first two columns are the familyID and subjectID as listed in the phenotype.updateFID.txt file
+	The first two columns are the updated familyID and subjectID as listed in columns 3 and 4 of the phenotype.updateFID.txt file
 	The third and fourth columns are the new paternal ID and maternalID.
 	
 	family5	subjectA	dad	mom
