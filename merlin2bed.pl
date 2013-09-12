@@ -47,7 +47,7 @@ print $output_extended_handle "#chr\tstartbp\tendbp\tname\tmaxLOD\tstartLOD\tend
 
 if ($allchr =~ /T/i || $allchr =~ /Y/i || $allchr =~ /1/) {
 	$merlintbl =~ /([\.\/\w]+)\.chr(\w+)-([\.\w]+)/;
-	my $merlinprefix = "$1.chr";			# et.dominant.chr10-parametric.tbl
+	my $merlinprefix = "$1.chr";			# pheno.dominant.chr10-parametric.tbl
 	my $merlinsuffix = "-$3";
 	
 	for (my $chr=1; $chr<=22; $chr++) {

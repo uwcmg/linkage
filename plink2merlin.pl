@@ -144,8 +144,8 @@ copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or die 
 # add in any extra ancestors and exclude people if desired
 # if (defined $familyedits) {
 	print "\tPedigree edits provided ($familyedits); making changes.\n";
-	if (system("perl /nfs/home/jxchong/bin/linkage_scripts/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.ped --out $interimdir/$pheno.merlin.ped") != 0) {
-		die "Could not run: perl /nfs/home/jxchong/bin/linkage_scripts/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.`ped --out $interimdir/$pheno.merlin.ped: $?";
+	if (system("perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.ped --out $interimdir/$pheno.merlin.ped") != 0) {
+		die "Could not run: perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.`ped --out $interimdir/$pheno.merlin.ped: $?";
 	}
 # } else {
 # 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
@@ -155,11 +155,11 @@ copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or die 
 # create a default model file if one doesn't already exist
 if (! -e "$outdir/$pheno.model") {
 	if ($model =~ /dominant/i) {
-		`echo '$pheno 0.001 0,0.95,1.0 Dominant_(q=0.001,_f=0,0.95,1.0)' | cat > $outdir/$pheno.model`;
+		`echo '$pheno 0.001 0,0.95,1.0 DOES_THIS_MODEL_MAKE_SENSE_(q=0.001,_f=0,0.95,1.0)' | cat > $outdir/$pheno.model`;
 	} elsif ($model =~ /recessive/i) {
-		`echo '$pheno 0.005 0,0,1.0 Recessive_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
+		`echo '$pheno 0.005 0,0,1.0 DOES_THIS_MODEL_MAKE_SENSE_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
 	} else {
-		`echo '$pheno 0.005 0,0,1.0 Generic_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
+		`echo '$pheno 0.005 0,0,1.0 DOES_THIS_MODEL_MAKE_SENSE_(q=0.005,_f=0,0,1.0)' | cat > $outdir/$pheno.model`;
 	}
 }
 
@@ -185,7 +185,7 @@ for (my $chr=1; $chr<=22; $chr++) {
 }
 
 print "Merlin format files $pheno.chr*.map $pheno.chr*.ped $pheno.chr*.freq $pheno.chr*.dat $pheno.model are ready in $outdir.\n";
-print "$pheno.model may need to be edited depending on your model of inheritance\n\n";
+print "$pheno.model should be edited to fit your model of inheritance\n\n";
 
 
 
@@ -208,8 +208,9 @@ for (my $i=1; $i<=22; $i++) {
 close $submit_handle;
 
 print "To run linkage: qsub $outdir/$pheno.sublinkage.sh\n";
-
-
+print "To create BED file summarizing linkage results, use /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/merlin2bed.pl\n";
+print "Linkage plots are created by Merlin: see $outdir/$pheno.$model.chr*.pdf\n";
+print "Linkage result tables are created by Merlin: see $outdir/$pheno.$model.chr*-parametric.tbl\n";
 
 
 
