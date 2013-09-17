@@ -60,12 +60,12 @@ if ($genotypechip =~ /ExomeChip/i) {
 	$refdatadir = "$mendeliandir/ExomeChipLinkage";
 	$updatecMfile = 'allchr.ExomeChip.updatecM.nodups.txt';
 	$updatecMsnplist = 'allchr.ExomeChip.updatecM.snplist';
-	if (system("cut -f1,7 $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
-		die "Can't extract haldane values from $mendeliandir/ExomeChipCompleteMaps/chr*.ExomeChip.map: $?";
+	if (system("cut -f1,7 $mendeliandir/ExomeChipComplete/maps/chr*.ExomeChip.map > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
+		die "Can't extract haldane values from $mendeliandir/ExomeChipComplete/chr*.ExomeChip.map: $?";
 	}
-	if (system("cut -f1,7 $mendeliandir/ExomeChipLinkage/maps/grid*.map >> $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
-		die "Can't extract haldane values from $mendeliandir/ExomeChipLinkage/maps/grid*.map: $?";
-	}
+	# if (system("cut -f1,7 $refdatadir/maps/grid*.map >> $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
+	# 	die "Can't extract haldane values from $mendeliandir/ExomeChipLinkage/maps/grid*.map: $?";
+	# }
 	if (system("sort -k1 $interimdir/allchr.ExomeChip.updatecM.txt | uniq > $interimdir/allchr.ExomeChip.updatecM.nodups.txt") != 0) {
 		die "Can't get only unique SNPs from $interimdir/allchr.ExomeChip.updatecM.txt: $?";
 	}
@@ -76,7 +76,26 @@ if ($genotypechip =~ /ExomeChip/i) {
 		die "Can't extract rsIDs for linkage analysis with cM values from $refdatadir/freqs/grid*.freqs: $?";
 	}  
 } elsif ($genotypechip =~ /CytoChip/i) {
-	die "Don't have genetic maps in $mendeliandir for $genotypechip\n";
+	die "CytoChip not implemented yet\n";
+	$refdatadir = "$mendeliandir/CytoChipLinkage";
+	$updatecMfile = 'allchr.CytoChip.updatecM.nodups.txt';
+	$updatecMsnplist = 'allchr.CytoChip.updatecM.snplist';
+	if (system("cut -f1,7 $mendeliandir/CytoChipComplete/maps/chr*.CytoChip.map > $interimdir/allchr.CytoChip.updatecM.txt") != 0) {
+		die "Can't extract haldane values from $mendeliandir/CytoChipComplete/chr*.CytoChip.map: $?";
+	}
+	# if (system("cut -f1,7 $refdatadir/maps/grid*.map >> $interimdir/allchr.CytoChip.updatecM.txt") != 0) {
+	# 	die "Can't extract haldane values from $mendeliandir/CytoChipLinkage/maps/grid*.map: $?";
+	# }
+	if (system("sort -k1 $interimdir/allchr.CytoChip.updatecM.txt | uniq > $interimdir/allchr.CytoChip.updatecM.nodups.txt") != 0) {
+		die "Can't get only unique SNPs from $interimdir/allchr.CytoChip.updatecM.txt: $?";
+	}
+	if (system("cut -f1 $interimdir/allchr.CytoChip.updatecM.txt > $interimdir/allchr.CytoChip.updatecM.snplist") != 0) {
+		die "Can't extract list of SNPs with haldane values from $interimdir/allchr.CytoChip.updatecM.snplist: $?";
+	}
+	if (system("cut -f2 $refdatadir/freqs/grid*.freqs > $interimdir/gridrsIDvariantsonly.snplist")) {
+		die "Can't extract rsIDs for linkage analysis with cM values from $refdatadir/freqs/grid*.freqs: $?";
+	}  
+	
 }
 
 
@@ -320,7 +339,9 @@ sub makefliplist {
 	close $fliplist_handle;
 	
 	print "... ... out of $bim_nvar variants with genotypes and in the linkage grid files, rejecting $ambig_nvar ambiguous and $reject_nvar weird variants, and flipping $flip_nvar variants\n";
-	if ($bim_nvar < 4500) {
+	if ($bim_nvar < 4500 && $chip =~ /ExomeChip/i) {
+		print "... ... WARNING: only $bim_nvar variants are in the linkage grid files and have genotypes.  Expect 4500-5500\n";
+	} elsif ($bim_nvar < 4000 && $chip =~ /CytoChip/i) {
 		print "... ... WARNING: only $bim_nvar variants are in the linkage grid files and have genotypes.  Expect 4500-5500\n";
 	}
 }
@@ -357,7 +378,7 @@ sub create_frqfile {
 	}
 	
 	my %inlinkage;	
-	open (my $map_handle, "$outdir/$pheno.chr$chr.map") or die "Cannot read 1 $outdir/$pheno.chr$chr.map: $?.\n";
+	open (my $map_handle, "$outdir/$pheno.chr$chr.map") or die "Cannot read $outdir/$pheno.chr$chr.map: $?.\n";
 	while ( <$map_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($chr, $rsid, $haldane) = split("\t", $_);
@@ -366,7 +387,7 @@ sub create_frqfile {
 	close $map_handle;
 	
 	open (my $merlinfrq_handle, ">", "$outdir/$pheno.chr$chr.freq") or die "Cannot write to $outdir/$pheno.chr$chr.freq: $?.\n";
-	open (my $input_handle, "$refdatadir/freqs/grid$chr.freqs") or die "Cannot read 2 $refdatadir/freqs/grid$chr.freqs: $?.\n";
+	open (my $input_handle, "$refdatadir/freqs/grid$chr.freqs") or die "Cannot read $refdatadir/freqs/grid$chr.freqs: $?.\n";
 	while ( <$input_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_);  	# order of population allele freqs: $AFR, $AMR, $ASN, $EUR, $OVERALL 
