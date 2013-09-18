@@ -34,7 +34,7 @@ my %removesubjects;
 open (FILE, "$editsfile") or die "Cannot open $editsfile file.\n";
 while ( <FILE> ){
 	$_ =~ s/\s+$//;					# Remove line endings
-	my @line = split ("\s+", $_);
+	my @line = split (/\s+/, $_);
 	my $subjectid = $line[1];
 	if ($subjectid =~ s/#//) {
 		$line[1] =~ s/#//;
