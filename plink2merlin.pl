@@ -51,56 +51,52 @@ $rawgenodir = remove_trailing_slash_dir($rawgenodir);
 $outdir = remove_trailing_slash_dir($outdir);
 $interimdir = remove_trailing_slash_dir($interimdir);
 
-my ($updatecMfile, $updatecMsnplist, $refdatadir);
+my ($updatecMfile, $updatecMsnplist, $griddatadir, $chipdatadir);
 
 
 print "\n";
 print "Using $genotypechip markers and frequencies because you specified genotypechip=$genotypechip\n";	
 if ($genotypechip =~ /ExomeChip/i) {
-	$refdatadir = "$mendeliandir/ExomeChipLinkage";
+	$griddatadir = "$mendeliandir/ExomeChipLinkage";
+	$chipdatadir = "$mendeliandir/ExomeChipComplete";
 	$updatecMfile = 'allchr.ExomeChip.updatecM.nodups.txt';
 	$updatecMsnplist = 'allchr.ExomeChip.updatecM.snplist';
 	if (system("cut -f1,7 $mendeliandir/ExomeChipComplete/maps/chr*.ExomeChip.map > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
 		die "Can't extract haldane values from $mendeliandir/ExomeChipComplete/chr*.ExomeChip.map: $?";
 	}
-	# if (system("cut -f1,7 $refdatadir/maps/grid*.map >> $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
-	# 	die "Can't extract haldane values from $mendeliandir/ExomeChipLinkage/maps/grid*.map: $?";
-	# }
 	if (system("sort -k1 $interimdir/allchr.ExomeChip.updatecM.txt | uniq > $interimdir/allchr.ExomeChip.updatecM.nodups.txt") != 0) {
 		die "Can't get only unique SNPs from $interimdir/allchr.ExomeChip.updatecM.txt: $?";
 	}
 	if (system("cut -f1 $interimdir/allchr.ExomeChip.updatecM.txt > $interimdir/allchr.ExomeChip.updatecM.snplist") != 0) {
 		die "Can't extract list of SNPs with haldane values from $interimdir/allchr.ExomeChip.updatecM.snplist: $?";
 	}
-	if (system("cut -f2 $refdatadir/freqs/grid*.freqs > $interimdir/gridrsIDvariantsonly.snplist")) {
-		die "Can't extract rsIDs for linkage analysis with cM values from $refdatadir/freqs/grid*.freqs: $?";
+	if (system("cut -f2 $griddatadir/freqs/grid*.freqs > $interimdir/gridrsIDvariantsonly.snplist")) {
+		die "Can't extract rsIDs for linkage analysis with cM values from $griddatadir/freqs/grid*.freqs: $?";
 	}  
 } elsif ($genotypechip =~ /CytoChip/i) {
 	die "CytoChip not implemented yet\n";
-	$refdatadir = "$mendeliandir/CytoChipLinkage";
+	
+	$griddatadir = "$mendeliandir/CytoChipLinkage";
+	$chipdatadir = "$mendeliandir/CytoChipComplete";
 	$updatecMfile = 'allchr.CytoChip.updatecM.nodups.txt';
 	$updatecMsnplist = 'allchr.CytoChip.updatecM.snplist';
 	if (system("cut -f1,7 $mendeliandir/CytoChipComplete/maps/chr*.CytoChip.map > $interimdir/allchr.CytoChip.updatecM.txt") != 0) {
 		die "Can't extract haldane values from $mendeliandir/CytoChipComplete/chr*.CytoChip.map: $?";
 	}
-	# if (system("cut -f1,7 $refdatadir/maps/grid*.map >> $interimdir/allchr.CytoChip.updatecM.txt") != 0) {
-	# 	die "Can't extract haldane values from $mendeliandir/CytoChipLinkage/maps/grid*.map: $?";
-	# }
 	if (system("sort -k1 $interimdir/allchr.CytoChip.updatecM.txt | uniq > $interimdir/allchr.CytoChip.updatecM.nodups.txt") != 0) {
 		die "Can't get only unique SNPs from $interimdir/allchr.CytoChip.updatecM.txt: $?";
 	}
 	if (system("cut -f1 $interimdir/allchr.CytoChip.updatecM.txt > $interimdir/allchr.CytoChip.updatecM.snplist") != 0) {
 		die "Can't extract list of SNPs with haldane values from $interimdir/allchr.CytoChip.updatecM.snplist: $?";
 	}
-	if (system("cut -f2 $refdatadir/freqs/grid*.freqs > $interimdir/gridrsIDvariantsonly.snplist")) {
-		die "Can't extract rsIDs for linkage analysis with cM values from $refdatadir/freqs/grid*.freqs: $?";
+	if (system("cut -f2 $griddatadir/freqs/grid*.freqs > $interimdir/gridrsIDvariantsonly.snplist")) {
+		die "Can't extract rsIDs for linkage analysis with cM values from $griddatadir/freqs/grid*.freqs: $?";
 	}  
 	
 }
 
 
 
-print "... generating list of variants with rsIDs in GenomeStudio output and cleaning up names\n";
 # read contents of the sample_qc/PLINK* directory and get names of map and ped files
 opendir my($dir_handle), $rawgenodir or die "Couldn't open dir $mendeliandir: $!";
 my @rawgenofiles = readdir $dir_handle;
@@ -120,19 +116,18 @@ if (!defined $rawgenoped || !defined $rawgenomap) {
 $rawgenostem = $rawgenomap;
 $rawgenostem =~ s/.map//;
 
-
+print "... generating list of variants with rsIDs in GenomeStudio output and cleaning up names\n";
 # generate list of variants with rsIDs that are in the raw genotype data,
 #   cleanup the name to be only the rsID itself, create update_rsIDS.txt
-create_update_rsID_names($interimdir, $rawgenodir, $rawgenomap, $refdatadir);
-
+create_update_rsID_names($interimdir, $rawgenodir, $rawgenomap, $chipdatadir);
 
 print "... creating PLINK files: extracting SNPs with rsIDs, updating genetic maps, extracting SNPs with call rate >= 95%\n";
 # update raw genotype files with rsIDs and create new PLINK files with only those variants
-`plink --file $rawgenodir/$rawgenostem --update-map $interimdir/update_rsIDs.txt --update-name --make-bed --out $interimdir/$pheno.gridvar`;
-`plink --bfile $interimdir/$pheno.gridvar --extract $interimdir/rsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.gridrsIDs`;
+`plink --file $rawgenodir/$rawgenostem --update-map $interimdir/update_rsIDs.txt --update-name --make-bed --out $interimdir/$pheno.allvar`;
+`plink --bfile $interimdir/$pheno.allvar --extract $interimdir/rsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.allvarrsIDs`;
 
 # update PLINK files with genetic map information
-`plink --bfile $interimdir/$pheno.gridrsIDs --update-map $interimdir/$updatecMfile --update-cm --extract $interimdir/$updatecMsnplist --make-bed --out $interimdir/$pheno.haldane`;
+`plink --bfile $interimdir/$pheno.allvarrsIDs --update-map $interimdir/$updatecMfile --update-cm --extract $interimdir/$updatecMsnplist --make-bed --out $interimdir/$pheno.haldane`;
 ### verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
 
 # do some basic QC: minimum 95% genotyping rate
@@ -144,27 +139,40 @@ print "... creating PLINK files: updating family information\n";
 `plink --bfile $interimdir/$pheno.updateFID --update-parents $pheno.updateparents.txt --make-bed --out $interimdir/$pheno.updateparents`;
 
 print "... creating PLINK files: determining SNPs that need allele flipping\n";
-# extract only variants in the grid files
-`plink --bfile $interimdir/$pheno.updateparents --extract $interimdir/gridrsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.gridonly`;
-
 # flip alleles in genotype file to match the 1000 Genomes reference file
-makefliplist("$pheno.gridonly.bim", $refdatadir);
-`plink --bfile $interimdir/$pheno.gridonly --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $interimdir/$pheno.flipped`;
+makefliplist("$pheno.updateparents.bim", $chipdatadir, $genotypechip);
+`plink --bfile $interimdir/$pheno.updateparents --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $interimdir/$pheno.flipped`;
 
+print "... zero out genotypes with Mendelian errors within the nuclear family\n";
 # do mendelian error check and zero out all probematic genotypes
-`plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --missing-phenotype 0 --recode --out $interimdir/$pheno.updateparents.me1-1`;
-# need to use --transpose so it is easier to sort by genetic position???
+`plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --missing-phenotype 0 --make-bed --out $interimdir/$pheno.updateparents.me1-1`;
 
+print "... creating reference population PLINK .frq file\n";
+# create a PLINK-format .frq file for using with --genome --read-freq
+create_plinkfrqfile($griddatadir, $chipdatadir, $refpop, $pheno, $outdir, $genotypechip);
 
-copy("$interimdir/$pheno.updateparents.me1-1.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.map to $interimdir/$pheno.merlin.map\n";
+# extract only variants in the grid files
+print "... extracting the linkage grid markers\n";
+`plink --bfile $interimdir/$pheno.updateparents.me1-1 --extract $interimdir/gridrsIDvariantsonly.snplist --recode --out $interimdir/$pheno.gridonly`;
+
+# create map file for generating per-chromosome merlin format files
+copy("$interimdir/$pheno.gridonly.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.gridonly.map to $interimdir/$pheno.merlin.map\n";
+# add code to check number of variants in $pheno.gridonly.map
+# if ($nvar < 4500 && $genotypechip =~ /ExomeChip/i) {
+# 	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect 4500-5500\n";
+# } elsif ($nvar < 4000 && $genotypechip =~ /CytoChip/i) {
+# 	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect 4000-4500\n";
+# }
+
+# create cm2bp file for summarizing linkage results in a BED format using merlin2bed.pl
 copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or die "Failed to copy $interimdir/$pheno.merlin.map to $outdir/$pheno.merlin.cm2bp.map\n";
 
 
-# add in any extra ancestors and exclude people if desired
+# add in any dummy ancestors and exclude people
 # if (defined $familyedits) {
 	print "\tPedigree edits provided ($familyedits); making changes.\n";
-	if (system("perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.ped --out $interimdir/$pheno.merlin.ped") != 0) {
-		die "Could not run: perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.updateparents.me1-1.`ped --out $interimdir/$pheno.merlin.ped: $?";
+	if (system("perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.gridonly.ped --out $interimdir/$pheno.merlin.ped") != 0) {
+		die "Could not run: perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.gridonly.ped --out $interimdir/$pheno.merlin.ped: $?";
 	}
 # } else {
 # 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
@@ -195,7 +203,7 @@ for (my $chr=1; $chr<=22; $chr++) {
 	`cut -f1-3 $interimdir/$pheno.merlin.chr$chr.map > $outdir/$pheno.chr$chr.map`;
 	
 	# create frequency file
-	create_frqfile($chr, $refdatadir, $refpop, $pheno, $outdir);
+	create_merlinfrqfile($chr, $griddatadir, $refpop, $pheno, $outdir);
 	# allele flipping to account for different strands
 
 	# create .dat file
@@ -250,26 +258,25 @@ sub remove_trailing_slash_dir {
 }
 
 sub create_update_rsID_names {
-	# use the rsIDs in the original exported PLINK map file and also try to match with grid files based on position and alleles
-	my ($interimdir, $rawgenodir, $rawgenomap, $refdatadir) = @_;
+	# use the rsIDs in the original exported PLINK map file and also try to match with complete map files based on position and alleles
+	my ($interimdir, $rawgenodir, $rawgenomap, $chipdatadir) = @_;
 	
 	# make plink bed file so it's easier to access the allele and position information
 	`plink --file $rawgenodir/$rawgenostem --make-bed --out $interimdir/originalgenotypes`;
 	
-	# read through bim file to get alleles and position; get likely rsID match from the reference grid files
-	## note that grid files only contain ~5k markers
-	my %gridref;
+	# read through bim file to get alleles and position; get likely rsID match from the reference files
+	my %refdata;
 	for (my $chr=1; $chr<=22; $chr++) {
-		open (my $grid_ref_handle, "$refdatadir/freqs/grid$chr.freqs") or die "Cannot read $refdatadir/freqs/grid$chr.freqs: $!.\n";
-		while ( <$grid_ref_handle> ) {
+		open (my $refdata_handle, "$chipdatadir/freqs/chr$chr.ExomeChip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.ExomeChip.freq: $!.\n";
+		while ( <$refdata_handle> ) {
 			$_ =~ s/\s+$//;					# Remove line endings
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_); 
-			$gridref{$SNPid} = $rsID;
-			# $gridref{"$chr:$b37"}{'ref'} = $ref;
-			# $gridref{"$chr:$b37"}{'alt'} = $alt;
-			# $gridref{"$chr:$b37"}{'rsID'} = $rsID;
+			$refdata{$SNPid} = $rsID;
+			# $refdata{"$chr:$b37"}{'ref'} = $ref;
+			# $refdata{"$chr:$b37"}{'alt'} = $alt;
+			# $refdata{"$chr:$b37"}{'rsID'} = $rsID;
 		}
-		close $grid_ref_handle;
+		close $refdata_handle;
 	}
 	
 	open (my $update_rsid_handle, ">", "$interimdir/update_rsIDs.txt") or die "Cannot write to $interimdir/update_rsIDs.txt: $!.\n";
@@ -282,8 +289,8 @@ sub create_update_rsID_names {
 			$rsid =~ s/exm-//;
 			$rsid =~ s/newrs/rs/;
 			print $update_rsid_handle "$varname\t$rsid\n";
-		} elsif (defined $gridref{$varname}) {
-			print $update_rsid_handle "$varname\t$gridref{$varname}\n";
+		} elsif (defined $refdata{$varname}) {
+			print $update_rsid_handle "$varname\t$refdata{$varname}\n";
 		}
 	}
 	close $raw_map_handle;
@@ -295,18 +302,17 @@ sub create_update_rsID_names {
 }
 
 sub makefliplist {
-	my ($bimfile, $refdatadir) = @_;	
+	my ($bimfile, $chipdatadir, $genotypechip) = @_;	
 
 	my %ref_alleles;
 	my ($grid_nvar, $reject_nvar, $ambig_nvar, $flip_nvar, $bim_nvar) = ((0) x 5);
 	for (my $chr=1; $chr<=22; $chr++) {
-		open (my $ref_allele_handle, "$refdatadir/freqs/grid$chr.freqs") or die "Cannot read $refdatadir/freqs/grid$chr.freqs: $?.\n";
+		open (my $ref_allele_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $?.\n";
 		while (<$ref_allele_handle>) {
 			$_ =~ s/\s+$//;					# Remove line endings
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_); 
 			$ref_alleles{$rsID}{'ref'} = $ref;
 			$ref_alleles{$rsID}{'alt'} = $alt;
-			$grid_nvar++;
 		}
 		close $ref_allele_handle;
 	}
@@ -321,29 +327,28 @@ sub makefliplist {
 			last;						# only handling autosomal chromosomes for now
 		}
 		$bim_nvar++;
-		my $action = needsflip($a1, $a2, $ref_alleles{$rsID}{'ref'}, $ref_alleles{$rsID}{'alt'});
-		if ($action eq 'flip') {
-			print $fliplist_handle "$rsID\n";
-			$flip_nvar++;
-		} elsif ($action eq 'ambiguous' || $action eq 'monomorphic') {
-			print $ambiguouslist_handle "$rsID\n";
-			$ambig_nvar++;
-		} elsif ($action eq 'weird') {
-			print STDERR "$rsID on chr$chr is not ambiguous (AT or GC SNP) but doesn't need to be flipped either.\n";
-			print $ambiguouslist_handle "$rsID\n";
-			$reject_nvar++;
+		if (!defined $ref_alleles{$rsID}) {
+			print STDERR "$rsID on chr$chr is not listed in $chipdatadir/freqs/chr$chr.$genotypechip.freq\n";
+		} else {
+			my $action = needsflip($a1, $a2, $ref_alleles{$rsID}{'ref'}, $ref_alleles{$rsID}{'alt'});
+			if ($action eq 'flip') {
+				print $fliplist_handle "$rsID\n";
+				$flip_nvar++;
+			} elsif ($action eq 'ambiguous' || $action eq 'monomorphic') {
+				print $ambiguouslist_handle "$rsID\n";
+				$ambig_nvar++;
+			} elsif ($action eq 'weird') {
+				print STDERR "$rsID on chr$chr is not ambiguous (AT or GC SNP) but doesn't need to be flipped either: a1/a2=$a1/$a2 while ref/alt=$ref_alleles{$rsID}{'ref'}/$ref_alleles{$rsID}{'alt'}\n";
+				print $ambiguouslist_handle "$rsID\n";
+				$reject_nvar++;
+			}
 		}
 	}
 	close $bim_handle;	
 	close $ambiguouslist_handle;	
 	close $fliplist_handle;
 	
-	print "... ... out of $bim_nvar variants with genotypes and in the linkage grid files, rejecting $ambig_nvar ambiguous and $reject_nvar weird variants, and flipping $flip_nvar variants\n";
-	if ($bim_nvar < 4500 && $chip =~ /ExomeChip/i) {
-		print "... ... WARNING: only $bim_nvar variants are in the linkage grid files and have genotypes.  Expect 4500-5500\n";
-	} elsif ($bim_nvar < 4000 && $chip =~ /CytoChip/i) {
-		print "... ... WARNING: only $bim_nvar variants are in the linkage grid files and have genotypes.  Expect 4500-5500\n";
-	}
+	print "... ... out of $bim_nvar variants with genotypes, rejecting $ambig_nvar ambiguous and $reject_nvar weird variants, and flipping $flip_nvar variants\n";
 }
 
 sub needsflip {
@@ -363,11 +368,11 @@ sub needsflip {
 	return $action;
 }
 
-sub create_frqfile {
-	my ($chr, $refdatadir, $refpop, $pheno, $outdir) = @_;
+sub create_merlinfrqfile {
+	my ($chr, $griddatadir, $refpop, $pheno, $outdir) = @_;
 	
 	# determine column number for getting ref population's frequencies
-	my $header = `head -1 $refdatadir/freqs/header.grid.freqs`;
+	my $header = `head -1 $griddatadir/freqs/header.grid.freqs`;
 	chomp $header;
 	my @cols = split("\t", $header);
 	my $refpopcol;
@@ -387,7 +392,7 @@ sub create_frqfile {
 	close $map_handle;
 	
 	open (my $merlinfrq_handle, ">", "$outdir/$pheno.chr$chr.freq") or die "Cannot write to $outdir/$pheno.chr$chr.freq: $?.\n";
-	open (my $input_handle, "$refdatadir/freqs/grid$chr.freqs") or die "Cannot read $refdatadir/freqs/grid$chr.freqs: $?.\n";
+	open (my $input_handle, "$griddatadir/freqs/grid$chr.freqs") or die "Cannot read $griddatadir/freqs/grid$chr.freqs: $?.\n";
 	while ( <$input_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_);  	# order of population allele freqs: $AFR, $AMR, $ASN, $EUR, $OVERALL 
@@ -402,7 +407,35 @@ sub create_frqfile {
 }
 
 
+sub create_plinkfrqfile {
+	my ($griddatadir, $chipdatadir, $refpop, $pheno, $outdir, $genotypechip) = @_;
+	
+	# determine column number for getting ref population's frequencies
+	my $header = `head -1 $griddatadir/freqs/header.grid.freqs`;
+	chomp $header;
+	my @cols = split("\t", $header);
+	my $refpopcol;
+	for (my $colnum=5; $colnum<=$#cols; $colnum++) {
+		if ($cols[$colnum] =~ /$refpop/i) {
+			$refpopcol = $colnum;
+		}
+	}
+	
+	open (my $plinkfrq_handle, ">", "$outdir/$pheno.ref$refpop.plink.frq") or die "Cannot write to $outdir/$pheno.ref$refpop.plink.frq: $?.\n";
+	print $plinkfrq_handle "CHR\tSNP\tA1\tA2\tMAF\tNCHROBS\n";
+	foreach my $chr ((1..22)) {
+		open (my $input_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $?.\n";
+		while ( <$input_handle> ) {
+			$_ =~ s/\s+$//;					# Remove line endings
+			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_);  	# order of population allele freqs: $AFR, $AMR, $ASN, $EUR, $OVERALL 
+			my $reffreq = 1 - $popfreqs[$refpopcol-5];
+			print $plinkfrq_handle "$chr\t$rsID\t$ref\t$alt\t$popfreqs[$refpopcol-5]\t1000\n";
+		}
+		close $input_handle;
+	}
 
+	close $plinkfrq_handle;
+}
 
 
 ################################################################################################################
