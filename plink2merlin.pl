@@ -57,6 +57,7 @@ my ($updatecMfile, $updatecMsnplist, $griddatadir, $chipdatadir);
 print "\n";
 print "Using $genotypechip markers and frequencies because you specified genotypechip=$genotypechip\n";	
 if ($genotypechip =~ /ExomeChip/i) {
+	$genotypechip = 'ExomeChip';
 	$griddatadir = "$mendeliandir/ExomeChipLinkage";
 	$chipdatadir = "$mendeliandir/ExomeChipComplete";
 	$updatecMfile = 'allchr.ExomeChip.updatecM.nodups.txt';
@@ -74,8 +75,7 @@ if ($genotypechip =~ /ExomeChip/i) {
 		die "Can't extract rsIDs for linkage analysis with cM values from $griddatadir/freqs/grid*.freqs: $?";
 	}  
 } elsif ($genotypechip =~ /CytoChip/i) {
-	die "CytoChip not implemented yet\n";
-	
+	$genotypechip = 'CytoChip';
 	$griddatadir = "$mendeliandir/CytoChipLinkage";
 	$chipdatadir = "$mendeliandir/CytoChipComplete";
 	$updatecMfile = 'allchr.CytoChip.updatecM.nodups.txt';
@@ -119,7 +119,7 @@ $rawgenostem =~ s/.map//;
 print "... generating list of variants with rsIDs in GenomeStudio output and cleaning up names\n";
 # generate list of variants with rsIDs that are in the raw genotype data,
 #   cleanup the name to be only the rsID itself, create update_rsIDS.txt
-create_update_rsID_names($interimdir, $rawgenodir, $rawgenomap, $chipdatadir);
+create_update_rsID_names($interimdir, $rawgenodir, $rawgenomap, $chipdatadir, $genotypechip);
 
 print "... creating PLINK files: extracting SNPs with rsIDs, updating genetic maps, extracting SNPs with call rate >= 95%\n";
 # update raw genotype files with rsIDs and create new PLINK files with only those variants
@@ -158,11 +158,11 @@ print "... extracting the linkage grid markers\n";
 # create map file for generating per-chromosome merlin format files
 copy("$interimdir/$pheno.gridonly.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.gridonly.map to $interimdir/$pheno.merlin.map\n";
 # add code to check number of variants in $pheno.gridonly.map
-# if ($nvar < 4500 && $genotypechip =~ /ExomeChip/i) {
-# 	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect 4500-5500\n";
-# } elsif ($nvar < 4000 && $genotypechip =~ /CytoChip/i) {
-# 	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect 4000-4500\n";
-# }
+if ($nvar < 4500 && $genotypechip =~ /ExomeChip/i) {
+	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect ~4500-5500\n";
+} elsif ($nvar < 4000 && $genotypechip =~ /CytoChip/i) {
+	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect ~4300-4900\n";
+}
 
 # create cm2bp file for summarizing linkage results in a BED format using merlin2bed.pl
 copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or die "Failed to copy $interimdir/$pheno.merlin.map to $outdir/$pheno.merlin.cm2bp.map\n";
@@ -234,8 +234,8 @@ for (my $i=1; $i<=22; $i++) {
 }
 close $submit_handle;
 
-print "To run linkage: qsub $outdir/$pheno.sublinkage.sh\n";
-print "To create BED file summarizing linkage results, use /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/merlin2bed.pl\n";
+print "\nTo run linkage: qsub $outdir/$pheno.sublinkage.sh\n";
+print "To create BED file summarizing linkage results, use /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/merlin2bed.pl --cm2bp $outdir/$pheno.merlin.cm2bp.map --merlintbl $pheno.$model.chr1-parametric.tbl --allchr T --cutofflod 0 --usechr T --outprefix pph\n";
 print "Linkage plots are created by Merlin: see $outdir/$pheno.$model.chr*.pdf\n";
 print "Linkage result tables are created by Merlin: see $outdir/$pheno.$model.chr*-parametric.tbl\n";
 
@@ -259,7 +259,7 @@ sub remove_trailing_slash_dir {
 
 sub create_update_rsID_names {
 	# use the rsIDs in the original exported PLINK map file and also try to match with complete map files based on position and alleles
-	my ($interimdir, $rawgenodir, $rawgenomap, $chipdatadir) = @_;
+	my ($interimdir, $rawgenodir, $rawgenomap, $chipdatadir, $genotypechip) = @_;
 	
 	# make plink bed file so it's easier to access the allele and position information
 	`plink --file $rawgenodir/$rawgenostem --make-bed --out $interimdir/originalgenotypes`;
@@ -267,7 +267,7 @@ sub create_update_rsID_names {
 	# read through bim file to get alleles and position; get likely rsID match from the reference files
 	my %refdata;
 	for (my $chr=1; $chr<=22; $chr++) {
-		open (my $refdata_handle, "$chipdatadir/freqs/chr$chr.ExomeChip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.ExomeChip.freq: $!.\n";
+		open (my $refdata_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $!.\n";
 		while ( <$refdata_handle> ) {
 			$_ =~ s/\s+$//;					# Remove line endings
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_); 
@@ -372,6 +372,9 @@ sub create_merlinfrqfile {
 	my ($chr, $griddatadir, $refpop, $pheno, $outdir) = @_;
 	
 	# determine column number for getting ref population's frequencies
+	if (! -e "$griddatadir/freqs/header.grid.freqs") {
+		die "Cannot read from $griddatadir/freqs/header.grid.freqs\n";
+	}
 	my $header = `head -1 $griddatadir/freqs/header.grid.freqs`;
 	chomp $header;
 	my @cols = split("\t", $header);
@@ -464,7 +467,7 @@ perl B<plink2merlin.pl> I<[options]>
 
 	path to genotypes in PLINK format as outputted by UWCMG pipeline (likely under project/sample_qc/PLINK*)
 
-=item B<--chip> I<Cytochip|ExomeChip>
+=item B<--chip> I<CytoChip|ExomeChip>
 
 	name of genotyping chip
 	
@@ -503,6 +506,12 @@ perl B<plink2merlin.pl> I<[options]>
 
 
 Remember to edit pheno.model file used by Merlin to customize model of inheritance, causal allele frequency, and penetrance.
+
+
+=head1 DESCRIPTION
+
+
+This script xxxxxxxxxxxxxxxxxxx.
 
 
 =head1 FILES
