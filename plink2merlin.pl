@@ -158,11 +158,11 @@ print "... extracting the linkage grid markers\n";
 # create map file for generating per-chromosome merlin format files
 copy("$interimdir/$pheno.gridonly.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.gridonly.map to $interimdir/$pheno.merlin.map\n";
 # add code to check number of variants in $pheno.gridonly.map
-if ($nvar < 4500 && $genotypechip =~ /ExomeChip/i) {
-	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect ~4500-5500\n";
-} elsif ($nvar < 4000 && $genotypechip =~ /CytoChip/i) {
-	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect ~4300-4900\n";
-}
+# if ($nvar < 4500 && $genotypechip =~ /ExomeChip/i) {
+# 	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect ~4500-5500\n";
+# } elsif ($nvar < 4000 && $genotypechip =~ /CytoChip/i) {
+# 	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect ~4300-4900\n";
+# }
 
 # create cm2bp file for summarizing linkage results in a BED format using merlin2bed.pl
 copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or die "Failed to copy $interimdir/$pheno.merlin.map to $outdir/$pheno.merlin.cm2bp.map\n";
@@ -511,7 +511,7 @@ Remember to edit pheno.model file used by Merlin to customize model of inheritan
 =head1 DESCRIPTION
 
 
-This script xxxxxxxxxxxxxxxxxxx.
+This script uses PLINK extensively to update family IDs, followed by updating parent IDs, followed by excluding SNPs with low call rate, zeroing out Mendelian errors, and extracting the grid markers. 
 
 
 =head1 FILES

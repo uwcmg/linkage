@@ -4,7 +4,7 @@
 #
 #
 #
-# Created by Jessica Chong on 20xx-xx-xx.
+# Created by Jessica Chong on 2013-09-20.
 
 use strict;
 use warnings;
@@ -24,7 +24,7 @@ GetOptions(
 	'chip=s' => \$chip,
 	'help|?' => \$help,
 ) or pod2usage(-verbose => 1) && exit;
-pod2usage(-verbose=>1, -exitval=>2) if $help;
+pod2usage(-verbose=>2, -exitval=>1) if $help;
 
 if (!defined $freqdir) {
 	 pod2usage(-exitval=>2, -verbose=>1, -message => "$0: --freqdir not defined.\n")
@@ -167,6 +167,7 @@ perl B<get_highhet_variants.pl> I<[options]>
 
 
 =head1 ARGUMENTS
+
 
 =over 4
 
