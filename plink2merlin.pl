@@ -14,6 +14,7 @@ use File::Copy;
 
 my $mendeliandir = '/net/grc/vol1/mendelian_projects/mendelian_analysis/references';
 my ($rawgenodir, $genotypechip, $refpop, $pheno, $model, $familyedits, $interimdir, $outdir, $help);
+my $doqc = '';
 
 GetOptions(
 	'rawgenodir=s' => \$rawgenodir, 
@@ -24,6 +25,7 @@ GetOptions(
 	'familyedits=s' => \$familyedits, 
 	'interimdir=s' => \$interimdir,
 	'outdir=s' => \$outdir,
+	'doqc' => \$doqc,
 	'help|?' => \$help,
 ) or pod2usage(-verbose => 1) && exit;
 pod2usage(-verbose=>2, -exitval=>1) if $help;
@@ -126,34 +128,37 @@ print "... creating PLINK files: extracting SNPs with rsIDs, updating genetic ma
 `plink --file $rawgenodir/$rawgenostem --update-map $interimdir/update_rsIDs.txt --update-name --make-bed --out $interimdir/$pheno.allvar`;
 `plink --bfile $interimdir/$pheno.allvar --extract $interimdir/rsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.allvarrsIDs`;
 
-# update PLINK files with genetic map information
-`plink --bfile $interimdir/$pheno.allvarrsIDs --update-map $interimdir/$updatecMfile --update-cm --extract $interimdir/$updatecMsnplist --make-bed --out $interimdir/$pheno.haldane`;
-### verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
 
 # do some basic QC: minimum 95% genotyping rate
-`plink --bfile $interimdir/$pheno.haldane --geno 0.05 --nonfounders --make-bed --out $interimdir/$pheno.callrate95`;
+`plink --bfile $interimdir/$pheno.allvarrsIDs --geno 0.05 --nonfounders --make-bed --out $interimdir/$pheno.callrate95`;
 
 print "... creating PLINK files: updating family information\n";
 # update family ID, phenotype, parental information based on files
 `plink --bfile $interimdir/$pheno.callrate95 --update-ids $pheno.updateFID.txt --make-bed --out $interimdir/$pheno.updateFID`;
 `plink --bfile $interimdir/$pheno.updateFID --update-parents $pheno.updateparents.txt --make-bed --out $interimdir/$pheno.updateparents`;
 
+
+# update PLINK files with genetic map information
+`plink --bfile $interimdir/$pheno.updateparents --update-map $interimdir/$updatecMfile --update-cm --extract $interimdir/$updatecMsnplist --make-bed --out $interimdir/$pheno.haldane`;
+### verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
+
 print "... creating PLINK files: determining SNPs that need allele flipping\n";
 # flip alleles in genotype file to match the 1000 Genomes reference file
-makefliplist("$pheno.updateparents.bim", $chipdatadir, $genotypechip);
-`plink --bfile $interimdir/$pheno.updateparents --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $interimdir/$pheno.flipped`;
+makefliplist("$pheno.haldane.bim", $chipdatadir, $genotypechip);
+`plink --bfile $interimdir/$pheno.haldane --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $interimdir/$pheno.flipped`;
 
 print "... zero out genotypes with Mendelian errors within the nuclear family\n";
 # do mendelian error check and zero out all probematic genotypes
-`plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --missing-phenotype 0 --make-bed --out $interimdir/$pheno.updateparents.me1-1`;
+`plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --missing-phenotype 0 --make-bed --out $interimdir/$pheno.flipped.me1-1`;
 
 print "... creating reference population PLINK .frq file\n";
 # create a PLINK-format .frq file for using with --genome --read-freq
 create_plinkfrqfile($griddatadir, $chipdatadir, $refpop, $pheno, $outdir, $genotypechip);
 
+
 # extract only variants in the grid files
 print "... extracting the linkage grid markers\n";
-`plink --bfile $interimdir/$pheno.updateparents.me1-1 --extract $interimdir/gridrsIDvariantsonly.snplist --recode --out $interimdir/$pheno.gridonly`;
+`plink --bfile $interimdir/$pheno.flipped.me1-1 --extract $interimdir/gridrsIDvariantsonly.snplist --recode --out $interimdir/$pheno.gridonly`;
 
 # create map file for generating per-chromosome merlin format files
 copy("$interimdir/$pheno.gridonly.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.gridonly.map to $interimdir/$pheno.merlin.map\n";
@@ -240,6 +245,27 @@ print "Linkage plots are created by Merlin: see $outdir/$pheno.$model.chr*.pdf\n
 print "Linkage result tables are created by Merlin: see $outdir/$pheno.$model.chr*-parametric.tbl\n";
 
 
+if ($doqc) {
+	print "\n";
+	# fix phenotype codes and make file for general whole-genome QC
+	print "... creating PLINK file for whole-genome QC metrics\n";
+	`bash -c '[ -d PLINK_QC ] || mkdir PLINK_QC'`;
+	`cut -f1,2,6 $pheno.familyedits.txt > PLINK_QC/$pheno.updatepheno.txt`;
+	`cut -f1,2,5 $pheno.familyedits.txt > PLINK_QC/$pheno.updatesex.txt`;
+
+	`plink --bfile $interimdir/$pheno.flipped.me1-1 --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
+	`plink --bfile $interimdir/$pheno.updateparents --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
+
+	print "... running basic QC checks using PLINK\n";
+	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --indep-pairwise 50 5 0.5 --out PLINK_QC/$pheno.forQC`;
+	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune`;
+	`plink --bfile PLINK_QC/$pheno.QC.LDprune --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.LDprune.het`;
+	`plink --bfile PLINK_QC/$pheno.QC.LDprune --read-freq $outdir/$pheno.ref$refpop.plink.frq --genome --out PLINK_QC/$pheno.QC.LDprune.IBD`;
+	`plink --bfile PLINK_QC/$pheno.QC.LDprune --missing --out PLINK_QC/$pheno.QC.LDprune.missingness`;
+	`plink --bfile PLINK_QC/$pheno.forsexQC --check-sex --out PLINK_QC/$pheno.QC.sex`;
+}
+
+
 
 
 
@@ -279,18 +305,22 @@ sub create_update_rsID_names {
 		close $refdata_handle;
 	}
 	
+	my %trackrsIDdupes;
 	open (my $update_rsid_handle, ">", "$interimdir/update_rsIDs.txt") or die "Cannot write to $interimdir/update_rsIDs.txt: $!.\n";
 	open (my $raw_map_handle, "$interimdir/originalgenotypes.bim") or die "Cannot read $interimdir/originalgenotypes.bim: $!.\n";
 	while ( <$raw_map_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($chr, $varname, $cM, $bp, @alleles) = split("\t", $_);
-		if ($varname =~ 'rs') {
-			my $rsid = $varname;
-			$rsid =~ s/exm-//;
-			$rsid =~ s/newrs/rs/;
-			print $update_rsid_handle "$varname\t$rsid\n";
-		} elsif (defined $refdata{$varname}) {
-			print $update_rsid_handle "$varname\t$refdata{$varname}\n";
+		if (!defined $trackrsIDdupes{$varname}) {
+			$trackrsIDdupes{$varname} = 1;
+			if ($varname =~ 'rs') {
+				my $rsid = $varname;
+				$rsid =~ s/exm-//;
+				$rsid =~ s/newrs/rs/;
+				print $update_rsid_handle "$varname\t$rsid\n";
+			} elsif (defined $refdata{$varname}) {
+				print $update_rsid_handle "$varname\t$refdata{$varname}\n";
+			}
 		}
 	}
 	close $raw_map_handle;
@@ -494,6 +524,10 @@ perl B<plink2merlin.pl> I<[options]>
 =item B<--outdir> F<directory>
 
 	path to output directory for finished Merlin format files
+
+=item B<--doqc> F<optional>
+
+	if this option is provided (--doqc), will use PLINK to run basic QC checks
 
 =item B<--help> I<help>
 

@@ -91,7 +91,7 @@ edit_linkage_family_info.pl -
 =head1 SYNOPSIS
 
 
-perl B<make_merline_freqfiles.pl> I<[options]>
+perl B<edit_linkage_family_info.pl> I<[options]>
 
 
 =head1 ARGUMENTS
