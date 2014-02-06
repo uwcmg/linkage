@@ -58,8 +58,8 @@ my ($updatecMfile, $updatecMsnplist, $griddatadir, $chipdatadir);
 
 print "\n";
 print "Using $genotypechip markers and frequencies because you specified genotypechip=$genotypechip\n";	
-if ($genotypechip =~ /ExomeChip/i) {
-	$genotypechip = 'ExomeChip';
+if ($genotypechip =~ /CoreExome/i) {
+	$genotypechip = 'ExomeChip';							# this is actually the Illumina HumanCoreExome Chip
 	$griddatadir = "$mendeliandir/ExomeChipLinkage";
 	$chipdatadir = "$mendeliandir/ExomeChipComplete";
 	$updatecMfile = 'allchr.ExomeChip.updatecM.nodups.txt';
@@ -497,7 +497,7 @@ perl B<plink2merlin.pl> I<[options]>
 
 	path to genotypes in PLINK format as outputted by UWCMG pipeline (likely under project/sample_qc/PLINK*)
 
-=item B<--chip> I<CytoChip|ExomeChip>
+=item B<--chip> I<CytoChip|CoreExome>
 
 	name of genotyping chip
 	
