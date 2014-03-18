@@ -239,8 +239,8 @@ for (my $i=1; $i<=22; $i++) {
 }
 close $submit_handle;
 
-print "\nTo run linkage: qsub $outdir/$pheno.sublinkage.sh\n";
-print "To create BED file summarizing linkage results, use /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/merlin2bed.pl --cm2bp $outdir/$pheno.merlin.cm2bp.map --merlintbl $pheno.$model.chr1-parametric.tbl --allchr T --cutofflod 0 --usechr T --outprefix pph\n";
+print "\nTo run linkage: cd $outdir; qsub $pheno.sublinkage.sh\n";
+print "To create BED file summarizing linkage results, use /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/merlin2bed.pl --cm2bp $outdir/$pheno.merlin.cm2bp.map --merlintbl $outdir/$pheno.$model.chr1-parametric.tbl --allchr T --cutofflod 0 --usechr T --outprefix $pheno\n";
 print "Linkage plots are created by Merlin: see $outdir/$pheno.$model.chr*.pdf\n";
 print "Linkage result tables are created by Merlin: see $outdir/$pheno.$model.chr*-parametric.tbl\n";
 
@@ -259,9 +259,9 @@ if ($doqc) {
 	print "... running basic QC checks using PLINK\n";
 	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --indep-pairwise 50 5 0.5 --out PLINK_QC/$pheno.forQC`;
 	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune`;
-	`plink --bfile PLINK_QC/$pheno.QC.LDprune --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.LDprune.het`;
+	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.LDprune.het`;
 	`plink --bfile PLINK_QC/$pheno.QC.LDprune --read-freq $outdir/$pheno.ref$refpop.plink.frq --genome --out PLINK_QC/$pheno.QC.LDprune.IBD`;
-	`plink --bfile PLINK_QC/$pheno.QC.LDprune --missing --out PLINK_QC/$pheno.QC.LDprune.missingness`;
+	`plink --bfile PLINK_QC/$pheno.forQC --missing --out PLINK_QC/$pheno.QC.LDprune.missingness`;
 	`plink --bfile PLINK_QC/$pheno.forsexQC --check-sex --out PLINK_QC/$pheno.QC.sex`;
 }
 
