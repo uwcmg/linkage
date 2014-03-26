@@ -53,7 +53,7 @@ $rawgenodir = remove_trailing_slash_dir($rawgenodir);
 $outdir = remove_trailing_slash_dir($outdir);
 $interimdir = remove_trailing_slash_dir($interimdir);
 
-my ($updatecMfile, $updatecMsnplist, $griddatadir, $chipdatadir);
+my ($updatecMfile, $updatecMsnplist, $griddatadir, $chipdatadir, $gridfreq_prefix, $gridfreq_suffix);
 
 
 print "\n";
@@ -62,6 +62,8 @@ if ($genotypechip =~ /CoreExome/i) {
 	$genotypechip = 'ExomeChip';							# this is actually the Illumina HumanCoreExome Chip
 	$griddatadir = "$mendeliandir/ExomeChipLinkage";
 	$chipdatadir = "$mendeliandir/ExomeChipComplete";
+	$gridfreq_prefix = 'grid';
+	$gridfreq_suffix = '.freqs';
 	$updatecMfile = 'allchr.ExomeChip.updatecM.nodups.txt';
 	$updatecMsnplist = 'allchr.ExomeChip.updatecM.snplist';
 	if (system("cut -f1,7 $mendeliandir/ExomeChipComplete/maps/chr*.ExomeChip.map > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
@@ -80,6 +82,8 @@ if ($genotypechip =~ /CoreExome/i) {
 	$genotypechip = 'CytoChip';
 	$griddatadir = "$mendeliandir/CytoChipLinkage";
 	$chipdatadir = "$mendeliandir/CytoChipComplete";
+	$gridfreq_prefix = 'grid';
+	$gridfreq_suffix = '.freqs';
 	$updatecMfile = 'allchr.CytoChip.updatecM.nodups.txt';
 	$updatecMsnplist = 'allchr.CytoChip.updatecM.snplist';
 	if (system("cut -f1,7 $mendeliandir/CytoChipComplete/maps/chr*.CytoChip.map > $interimdir/allchr.CytoChip.updatecM.txt") != 0) {
@@ -94,9 +98,47 @@ if ($genotypechip =~ /CoreExome/i) {
 	if (system("cut -f2 $griddatadir/freqs/grid*.freqs > $interimdir/gridrsIDvariantsonly.snplist")) {
 		die "Can't extract rsIDs for linkage analysis with cM values from $griddatadir/freqs/grid*.freqs: $?";
 	}  
-	
+} elsif ($genotypechip =~ /Omni2_5/i) {
+	$genotypechip = 'Omni2_5';
+	$griddatadir = "$mendeliandir/Omni2_5Chip/grid";
+	$chipdatadir = "$mendeliandir/Omni2_5Chip";
+	$gridfreq_prefix = 'chr';
+	$gridfreq_suffix = '.Omni2_5.grid.freq';
+	$updatecMfile = 'allchr.Omni2_5.updatecM.nodups.txt';
+	$updatecMsnplist = 'allchr.Omni2_5.updatecM.snplist';
+	if (system("cut -f1,7 $mendeliandir/Omni2_5Chip/maps/chr*.Omni2_5.map > $interimdir/allchr.Omni2_5.updatecM.txt") != 0) {
+		die "Can't extract haldane values from $mendeliandir/Omni2_5Complete/chr*.Omni2_5.map: $?";
+	}
+	if (system("sort -k1 $interimdir/allchr.Omni2_5.updatecM.txt | uniq > $interimdir/allchr.Omni2_5.updatecM.nodups.txt") != 0) {
+		die "Can't get only unique SNPs from $interimdir/allchr.Omni2_5.updatecM.txt: $?";
+	}
+	if (system("cut -f1 $interimdir/allchr.Omni2_5.updatecM.txt > $interimdir/allchr.Omni2_5.updatecM.snplist") != 0) {
+		die "Can't extract list of SNPs with haldane values from $interimdir/allchr.Omni2_5.updatecM.snplist: $?";
+	}
+	if (system("cut -f2 $griddatadir/freqs/chr*.Omni2_5.grid.freq > $interimdir/gridrsIDvariantsonly.snplist")) {
+		die "Can't extract rsIDs for linkage analysis with cM values from $griddatadir/freqs/chr*.Omni2_5.grid.freq: $?";
+	}  
+} elsif ($genotypechip =~ /OmniExpress/i) {
+	$genotypechip = 'OmniExpress';
+	$griddatadir = "$mendeliandir/OmniExpressComplete/grid";
+	$chipdatadir = "$mendeliandir/OmniExpressComplete";
+	$gridfreq_prefix = 'chr';
+	$gridfreq_suffix = '.OmniExpress.grid.freq';
+	$updatecMfile = 'allchr.OmniExpress.updatecM.nodups.txt';
+	$updatecMsnplist = 'allchr.OmniExpress.updatecM.snplist';
+	if (system("cut -f1,7 $mendeliandir/OmniExpressComplete/maps/chr*.OmniExpress.map > $interimdir/allchr.OmniExpress.updatecM.txt") != 0) {
+		die "Can't extract haldane values from $mendeliandir/OmniExpressComplete/chr*.OmniExpress.map: $?";
+	}
+	if (system("sort -k1 $interimdir/allchr.OmniExpress.updatecM.txt | uniq > $interimdir/allchr.OmniExpress.updatecM.nodups.txt") != 0) {
+		die "Can't get only unique SNPs from $interimdir/allchr.OmniExpress.updatecM.txt: $?";
+	}
+	if (system("cut -f1 $interimdir/allchr.OmniExpress.updatecM.txt > $interimdir/allchr.OmniExpress.updatecM.snplist") != 0) {
+		die "Can't extract list of SNPs with haldane values from $interimdir/allchr.OmniExpress.updatecM.snplist: $?";
+	}
+	if (system("cut -f2 $griddatadir/freqs/chr*.OmniExpress.grid.freq > $interimdir/gridrsIDvariantsonly.snplist")) {
+		die "Can't extract rsIDs for linkage analysis with cM values from $griddatadir/freqs/chr*.OmniExpress.grid.freq: $?";
+	}  
 }
-
 
 
 # read contents of the sample_qc/PLINK* directory and get names of map and ped files
@@ -208,7 +250,7 @@ for (my $chr=1; $chr<=22; $chr++) {
 	`cut -f1-3 $interimdir/$pheno.merlin.chr$chr.map > $outdir/$pheno.chr$chr.map`;
 	
 	# create frequency file
-	create_merlinfrqfile($chr, $griddatadir, $refpop, $pheno, $outdir);
+	create_merlinfrqfile($chr, $griddatadir, $refpop, $pheno, $outdir, $gridfreq_prefix, $gridfreq_suffix);
 	# allele flipping to account for different strands
 
 	# create .dat file
@@ -250,13 +292,14 @@ if ($doqc) {
 	# fix phenotype codes and make file for general whole-genome QC
 	print "... creating PLINK file for whole-genome QC metrics\n";
 	`bash -c '[ -d PLINK_QC ] || mkdir PLINK_QC'`;
-	`cut -f1,2,6 $pheno.familyedits.txt > PLINK_QC/$pheno.updatepheno.txt`;
-	`cut -f1,2,5 $pheno.familyedits.txt > PLINK_QC/$pheno.updatesex.txt`;
+	`cut -f1,2,6 $pheno.familyedits.txt | sed 's/[!#]//g' > PLINK_QC/$pheno.updatepheno.txt`;
+	`cut -f1,2,5 $pheno.familyedits.txt | sed 's/[!#]//g' > PLINK_QC/$pheno.updatesex.txt`;
 
 	`plink --bfile $interimdir/$pheno.flipped.me1-1 --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
 	`plink --bfile $interimdir/$pheno.updateparents --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
 
 	print "... running basic QC checks using PLINK\n";
+	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --genome --out PLINK_QC/$pheno.QC.IBD`;
 	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --indep-pairwise 50 5 0.5 --out PLINK_QC/$pheno.forQC`;
 	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune`;
 	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.LDprune.het`;
@@ -399,7 +442,7 @@ sub needsflip {
 }
 
 sub create_merlinfrqfile {
-	my ($chr, $griddatadir, $refpop, $pheno, $outdir) = @_;
+	my ($chr, $griddatadir, $refpop, $pheno, $outdir, $gridfreq_prefix, $gridfreq_suffix) = @_;
 	
 	# determine column number for getting ref population's frequencies
 	if (! -e "$griddatadir/freqs/header.grid.freqs") {
@@ -425,7 +468,7 @@ sub create_merlinfrqfile {
 	close $map_handle;
 	
 	open (my $merlinfrq_handle, ">", "$outdir/$pheno.chr$chr.freq") or die "Cannot write to $outdir/$pheno.chr$chr.freq: $?.\n";
-	open (my $input_handle, "$griddatadir/freqs/grid$chr.freqs") or die "Cannot read $griddatadir/freqs/grid$chr.freqs: $?.\n";
+	open (my $input_handle, "$griddatadir/freqs/$gridfreq_prefix$chr$gridfreq_suffix") or die "Cannot read $griddatadir/freqs/$gridfreq_prefix$chr$gridfreq_suffix: $?.\n";
 	while ( <$input_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_);  	# order of population allele freqs: $AFR, $AMR, $ASN, $EUR, $OVERALL 
@@ -497,7 +540,7 @@ perl B<plink2merlin.pl> I<[options]>
 
 	path to genotypes in PLINK format as outputted by UWCMG pipeline (likely under project/sample_qc/PLINK*)
 
-=item B<--chip> I<CytoChip|CoreExome>
+=item B<--chip> I<CytoChip|CoreExome|Omni2_5|OmniExpress>
 
 	name of genotyping chip
 	
