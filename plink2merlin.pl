@@ -168,7 +168,7 @@ create_update_rsID_names($interimdir, $rawgenodir, $rawgenomap, $chipdatadir, $g
 print "... creating PLINK files: extracting SNPs with rsIDs, updating genetic maps, extracting SNPs with call rate >= 95%\n";
 # update raw genotype files with rsIDs and create new PLINK files with only those variants
 `plink --file $rawgenodir/$rawgenostem --update-map $interimdir/update_rsIDs.txt --update-name --make-bed --out $interimdir/$pheno.allvar`;
-`plink --bfile $interimdir/$pheno.allvar --extract $interimdir/rsIDvariantsonly.snplist --make-bed --out $interimdir/$pheno.allvarrsIDs`;
+`plink --bfile $interimdir/$pheno.allvar --extract $interimdir/rsIDvariantsonly.snplist --exclude $interimdir/remove_dupe_variants.txt --make-bed --out $interimdir/$pheno.allvarrsIDs`;
 
 
 # do some basic QC: minimum 95% genotyping rate
@@ -191,7 +191,7 @@ makefliplist("$pheno.haldane.bim", $chipdatadir, $genotypechip);
 
 print "... zero out genotypes with Mendelian errors within the nuclear family\n";
 # do mendelian error check and zero out all probematic genotypes
-`plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --missing-phenotype 0 --make-bed --out $interimdir/$pheno.flipped.me1-1`;
+`plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --make-bed --out $interimdir/$pheno.flipped.me1-1`;
 
 print "... creating reference population PLINK .frq file\n";
 # create a PLINK-format .frq file for using with --genome --read-freq
@@ -243,7 +243,7 @@ print "... making linkage files\n";
 for (my $chr=1; $chr<=22; $chr++) {
 	print "\tfor chromosome $chr\n";
 	# create ped file
-	`plink --file $interimdir/$pheno.merlin --chr $chr --missing-phenotype 0 --recode --out $interimdir/$pheno.merlin.chr$chr`;
+	`plink --file $interimdir/$pheno.merlin --chr $chr --recode --out $interimdir/$pheno.merlin.chr$chr`;
 	move("$interimdir/$pheno.merlin.chr$chr.ped", "$outdir/$pheno.chr$chr.ped") or die "Failed to move $interimdir/$pheno.merlin.chr$chr.ped to $outdir/$pheno.chr$chr.ped\n";
 	
 	# create map file 
@@ -299,13 +299,12 @@ if ($doqc) {
 	`plink --bfile $interimdir/$pheno.updateparents --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
 
 	print "... running basic QC checks using PLINK\n";
-	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --genome --out PLINK_QC/$pheno.QC.IBD`;
-	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --indep-pairwise 50 5 0.5 --out PLINK_QC/$pheno.forQC`;
-	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune`;
-	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.LDprune.het`;
-	`plink --bfile PLINK_QC/$pheno.QC.LDprune --read-freq $outdir/$pheno.ref$refpop.plink.frq --genome --out PLINK_QC/$pheno.QC.LDprune.IBD`;
-	`plink --bfile PLINK_QC/$pheno.forQC --missing --out PLINK_QC/$pheno.QC.LDprune.missingness`;
-	`plink --bfile PLINK_QC/$pheno.forsexQC --check-sex --out PLINK_QC/$pheno.QC.sex`;
+	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --genome --out PLINK_QC/$pheno.QC.IBD --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --indep-pairwise 50 5 0.5 --out PLINK_QC/$pheno.forQC --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.het --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --missing --out PLINK_QC/$pheno.QC.missingness --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forsexQC --check-sex --out PLINK_QC/$pheno.QC.sex --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune --noweb`;
 }
 
 
@@ -350,24 +349,34 @@ sub create_update_rsID_names {
 	
 	my %trackrsIDdupes;
 	open (my $update_rsid_handle, ">", "$interimdir/update_rsIDs.txt") or die "Cannot write to $interimdir/update_rsIDs.txt: $!.\n";
+	open (my $exclude_dup_varnames_handle, ">", "$interimdir/remove_dupe_variants.txt") or die "Cannot write to $interimdir/remove_dupe_variants.txt: $!.\n";
 	open (my $raw_map_handle, "$interimdir/originalgenotypes.bim") or die "Cannot read $interimdir/originalgenotypes.bim: $!.\n";
 	while ( <$raw_map_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($chr, $varname, $cM, $bp, @alleles) = split("\t", $_);
-		if (!defined $trackrsIDdupes{$varname}) {
-			$trackrsIDdupes{$varname} = 1;
+		my $rsid = $varname;
+		$rsid =~ s/exm-//;
+		$rsid =~ s/newrs/rs/;
+		
+		if (!defined $trackrsIDdupes{$rsid}) {
 			if ($varname =~ 'rs') {
-				my $rsid = $varname;
-				$rsid =~ s/exm-//;
-				$rsid =~ s/newrs/rs/;
 				print $update_rsid_handle "$varname\t$rsid\n";
+				$trackrsIDdupes{$varname} = 1;
+				$trackrsIDdupes{$rsid} = 1;
 			} elsif (defined $refdata{$varname}) {
-				print $update_rsid_handle "$varname\t$refdata{$varname}\n";
-			}
+				if (!defined $trackrsIDdupes{$refdata{$varname}}) {
+					print $update_rsid_handle "$varname\t$refdata{$varname}\n";
+				} else {
+					$trackrsIDdupes{$refdata{$varname}} = 1;
+				}
+			} 
+		} else {
+			print $exclude_dup_varnames_handle "$varname\n";
 		}
 	}
 	close $raw_map_handle;
 	close $update_rsid_handle;
+	close $exclude_dup_varnames_handle;
 	
 	if (system("cut -f2 $interimdir/update_rsIDs.txt > $interimdir/rsIDvariantsonly.snplist")) {
 		die "Can't extract all SNPs with rsIDs: $?";
@@ -429,7 +438,7 @@ sub needsflip {
 	my %flipallele = ('A'=>'T', 'C'=>'G', 'G'=>'C', 'T'=>'A', '0' => '0'); 			# switch the strand of the genotype
 
 	my $action = 'weird';
-	if ("$a1$a2" =~ '0') {
+	if ("$a1$a2" =~ '0' && ("$ref$alt" eq 'AT' || "$ref$alt" eq 'TA' || "$ref$alt" eq 'GC' || "$ref$alt" eq 'CG')) {		# monomorphic in genotype file AND ambiguous in reference data so we don't know if flipping needed
 		$action = 'monomorphic';
 	} elsif ("$a1$a2" eq 'AT' || "$a1$a2" eq 'TA' || "$a1$a2" eq 'GC' || "$a1$a2" eq 'CG') {
 		$action = 'ambiguous';
