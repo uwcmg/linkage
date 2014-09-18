@@ -13,7 +13,7 @@ use Pod::Usage;
 use File::Copy;
 
 my $mendeliandir = '/net/grc/vol1/mendelian_projects/mendelian_analysis/references';
-my ($rawgenodir, $genotypechip, $refpop, $pheno, $model, $familyedits, $interimdir, $outdir, $help);
+my ($rawgenodir, $genotypechip, $refpop, $pheno, $model, $familyedits, $interimdir, $outdir, $recode12, $help);
 my $doqc = '';
 
 GetOptions(
@@ -26,6 +26,7 @@ GetOptions(
 	'interimdir=s' => \$interimdir,
 	'outdir=s' => \$outdir,
 	'doqc' => \$doqc,
+	'recode12' => \$recode12,
 	'help|?' => \$help,
 ) or pod2usage(-verbose => 1) && exit;
 pod2usage(-verbose=>2, -exitval=>1) if $help;
@@ -187,11 +188,22 @@ print "... creating PLINK files: updating family information\n";
 print "... creating PLINK files: determining SNPs that need allele flipping\n";
 # flip alleles in genotype file to match the 1000 Genomes reference file
 makefliplist("$pheno.haldane.bim", $chipdatadir, $genotypechip);
-`plink --bfile $interimdir/$pheno.haldane --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $interimdir/$pheno.flipped`;
+`plink --bfile $interimdir/$pheno.haldane --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --recode --out $interimdir/$pheno.flipped`;
+
+
+# add in any dummy ancestors and exclude people
+# if (defined $familyedits) {
+	print "\tPedigree edits provided ($familyedits); making changes.\n";
+	if (system("perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.flipped.ped --out $interimdir/$pheno.familyedits.ped") != 0) {
+		die "Could not run: perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.flipped.ped --out $interimdir/$pheno.familyedits.ped: $?";
+	}
+# } else {
+# 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
+# }
 
 print "... zero out genotypes with Mendelian errors within the nuclear family\n";
 # do mendelian error check and zero out all probematic genotypes
-`plink --bfile $interimdir/$pheno.flipped --me 1 1 --set-me-missing --make-bed --out $interimdir/$pheno.flipped.me1-1`;
+`plink --ped $interimdir/$pheno.familyedits.ped --map $interimdir/$pheno.flipped.map --me 1 1 --set-me-missing --make-bed --out $interimdir/$pheno.familyedits.me1-1`;
 
 print "... creating reference population PLINK .frq file\n";
 # create a PLINK-format .frq file for using with --genome --read-freq
@@ -200,7 +212,7 @@ create_plinkfrqfile($griddatadir, $chipdatadir, $refpop, $pheno, $outdir, $genot
 
 # extract only variants in the grid files
 print "... extracting the linkage grid markers\n";
-`plink --bfile $interimdir/$pheno.flipped.me1-1 --extract $interimdir/gridrsIDvariantsonly.snplist --recode --out $interimdir/$pheno.gridonly`;
+`plink --bfile $interimdir/$pheno.familyedits.me1-1 --extract $interimdir/gridrsIDvariantsonly.snplist --recode --out $interimdir/$pheno.gridonly`;
 
 # create map file for generating per-chromosome merlin format files
 copy("$interimdir/$pheno.gridonly.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.gridonly.map to $interimdir/$pheno.merlin.map\n";
@@ -213,17 +225,6 @@ copy("$interimdir/$pheno.gridonly.map", "$interimdir/$pheno.merlin.map") or die 
 
 # create cm2bp file for summarizing linkage results in a BED format using merlin2bed.pl
 copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or die "Failed to copy $interimdir/$pheno.merlin.map to $outdir/$pheno.merlin.cm2bp.map\n";
-
-
-# add in any dummy ancestors and exclude people
-# if (defined $familyedits) {
-	print "\tPedigree edits provided ($familyedits); making changes.\n";
-	if (system("perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.gridonly.ped --out $interimdir/$pheno.merlin.ped") != 0) {
-		die "Could not run: perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.gridonly.ped --out $interimdir/$pheno.merlin.ped: $?";
-	}
-# } else {
-# 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
-# }
 
 
 # create a default model file if one doesn't already exist
@@ -243,7 +244,11 @@ print "... making linkage files\n";
 for (my $chr=1; $chr<=22; $chr++) {
 	print "\tfor chromosome $chr\n";
 	# create ped file
-	`plink --file $interimdir/$pheno.merlin --chr $chr --recode --out $interimdir/$pheno.merlin.chr$chr`;
+	`plink --file $interimdir/$pheno.gridonly --chr $chr --recode --output-missing-phenotype 0 --out $interimdir/$pheno.merlin.chr$chr`;
+	if (defined $recode12) {
+		`plink --file $interimdir/$pheno.gridonly --chr $chr --recode12 --output-missing-phenotype 0 --out $interimdir/$pheno.merlin12.chr$chr`;
+		move("$interimdir/$pheno.merlin12.chr$chr.ped", "$outdir/$pheno.12.chr$chr.ped") or die "Failed to move $interimdir/$pheno.merlin12.chr$chr.ped to $outdir/$pheno.12.chr$chr.ped\n";
+	}
 	move("$interimdir/$pheno.merlin.chr$chr.ped", "$outdir/$pheno.chr$chr.ped") or die "Failed to move $interimdir/$pheno.merlin.chr$chr.ped to $outdir/$pheno.chr$chr.ped\n";
 	
 	# create map file 
