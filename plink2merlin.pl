@@ -297,10 +297,10 @@ if ($doqc) {
 	# fix phenotype codes and make file for general whole-genome QC
 	print "... creating PLINK file for whole-genome QC metrics\n";
 	`bash -c '[ -d PLINK_QC ] || mkdir PLINK_QC'`;
-	`cut -f1,2,6 $pheno.familyedits.txt | sed 's/[!#]//g' > PLINK_QC/$pheno.updatepheno.txt`;
-	`cut -f1,2,5 $pheno.familyedits.txt | sed 's/[!#]//g' > PLINK_QC/$pheno.updatesex.txt`;
+	`cut -f1,2,6 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatepheno.txt`;
+	`cut -f1,2,5 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatesex.txt`;
 
-	`plink --bfile $interimdir/$pheno.flipped.me1-1 --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
+	`plink --bfile $interimdir/$pheno.familyedits.me1-1 --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --mind 0.1 --out PLINK_QC/$pheno.forQC`;
 	`plink --bfile $interimdir/$pheno.updateparents --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
 
 	print "... running basic QC checks using PLINK\n";
