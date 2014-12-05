@@ -275,6 +275,8 @@ print $submit_handle '#$ -t 1-22'."\n";
 print $submit_handle '#$ -o .'."\n";
 print $submit_handle '#$ -e .'."\n";
 print $submit_handle '#$ -cwd'."\n\n";
+print $submit_handle '#$ -l mem_requested=8G'."\n\n";
+print $submit_handle '#$ -l h_vmem=12G'."\n\n";
 print $submit_handle 'module load modules modules-init modules-gs gsits-util/latest'."\n";
 print $submit_handle 'module load plink/latest perl/5.14.2 merlin/latest'."\n";
 print $submit_handle "\n";
@@ -300,7 +302,7 @@ if ($doqc) {
 	`cut -f1,2,6 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatepheno.txt`;
 	`cut -f1,2,5 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatesex.txt`;
 
-	`plink --bfile $interimdir/$pheno.familyedits.me1-1 --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --mind 0.1 --out PLINK_QC/$pheno.forQC`;
+	`plink --bfile $interimdir/$pheno.familyedits.me1-1 --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --mind 0.8 --out PLINK_QC/$pheno.forQC`;
 	`plink --bfile $interimdir/$pheno.updateparents --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
 
 	print "... running basic QC checks using PLINK\n";
