@@ -167,35 +167,35 @@ print "... generating list of variants with rsIDs in GenomeStudio output and cle
 create_update_rsID_names($interimdir, $rawgenodir, $rawgenomap, $chipdatadir, $genotypechip);
 
 print "... creating PLINK files: extracting SNPs with rsIDs, updating genetic maps, extracting SNPs with call rate >= 95%\n";
-# update raw genotype files with rsIDs and create new PLINK files with only those variants
+# update raw genotype files with rsIDs 
 `plink --file $rawgenodir/$rawgenostem --update-map $interimdir/update_rsIDs.txt --update-name --make-bed --out $interimdir/$pheno.allvar`;
-`plink --bfile $interimdir/$pheno.allvar --extract $interimdir/rsIDvariantsonly.snplist --exclude $interimdir/remove_dupe_variants.txt --make-bed --out $interimdir/$pheno.allvarrsIDs`;
-
-
-# do some basic QC: minimum 95% genotyping rate
-`plink --bfile $interimdir/$pheno.allvarrsIDs --geno 0.05 --nonfounders --make-bed --out $interimdir/$pheno.callrate95`;
 
 print "... creating PLINK files: updating family information\n";
 # update family ID, phenotype, parental information based on files
-`plink --bfile $interimdir/$pheno.callrate95 --update-ids $pheno.updateFID.txt --make-bed --out $interimdir/$pheno.updateFID`;
+`plink --bfile $interimdir/$pheno.allvar --update-ids $pheno.updateFID.txt --make-bed --out $interimdir/$pheno.updateFID`;
 `plink --bfile $interimdir/$pheno.updateFID --update-parents $pheno.updateparents.txt --make-bed --out $interimdir/$pheno.updateparents`;
 
+# create new PLINK files with only rsID variants
+`plink --bfile $interimdir/$pheno.updateparents --extract $interimdir/rsIDvariantsonly.snplist --exclude $interimdir/remove_dupe_variants.txt --make-bed --out $interimdir/$pheno.allvarrsIDs`;
 
-# update PLINK files with genetic map information
-`plink --bfile $interimdir/$pheno.updateparents --update-map $interimdir/$updatecMfile --update-cm --extract $interimdir/$updatecMsnplist --make-bed --out $interimdir/$pheno.haldane`;
-### verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
+# do some basic QC: minimum 95% genotyping rate
+`plink --bfile $interimdir/$pheno.allvarrsIDs --geno 0.05 --nonfounders --exclude $interimdir/remove_dupe_variants.txt --make-bed --out $interimdir/$pheno.callrate95`;
 
 print "... creating PLINK files: determining SNPs that need allele flipping\n";
 # flip alleles in genotype file to match the 1000 Genomes reference file
-makefliplist("$pheno.haldane.bim", $chipdatadir, $genotypechip);
-`plink --bfile $interimdir/$pheno.haldane --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --recode --out $interimdir/$pheno.flipped`;
+makefliplist("$pheno.callrate95.bim", $chipdatadir, $genotypechip);
+`plink --bfile $interimdir/$pheno.callrate95 --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out $interimdir/$pheno.flipped`;
+
+# update PLINK files with genetic map information
+`plink --bfile $interimdir/$pheno.flipped --update-map $interimdir/$updatecMfile --update-cm --extract $interimdir/$updatecMsnplist --recode --out $interimdir/$pheno.haldane`;
+### verify all variants have genetic map updated: "0 in data but not in [ /nfs/home/jxchong/lib/allchr.ExomeChip.updatecM.txt ]"
 
 
 # add in any dummy ancestors and exclude people
 # if (defined $familyedits) {
 	print "\tPedigree edits provided ($familyedits); making changes.\n";
-	if (system("perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.flipped.ped --out $interimdir/$pheno.familyedits.ped") != 0) {
-		die "Could not run: perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.flipped.ped --out $interimdir/$pheno.familyedits.ped: $?";
+	if (system("perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.haldane.ped --out $interimdir/$pheno.familyedits.ped") != 0) {
+		die "Could not run: perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.haldane.ped --out $interimdir/$pheno.familyedits.ped: $?";
 	}
 # } else {
 # 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
@@ -302,16 +302,19 @@ if ($doqc) {
 	`cut -f1,2,6 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatepheno.txt`;
 	`cut -f1,2,5 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatesex.txt`;
 
-	`plink --bfile $interimdir/$pheno.familyedits.me1-1 --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --mind 0.8 --out PLINK_QC/$pheno.forQC`;
-	`plink --bfile $interimdir/$pheno.updateparents --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
+	`plink --file $interimdir/adelstein_poc.flipped --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
+	`plink --bfile $interimdir/$pheno.callrate95 --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
 
 	print "... running basic QC checks using PLINK\n";
 	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --genome --out PLINK_QC/$pheno.QC.IBD --noweb`;
 	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --indep-pairwise 50 5 0.5 --out PLINK_QC/$pheno.forQC --noweb`;
 	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.het --noweb`;
 	`plink --bfile PLINK_QC/$pheno.forQC --missing --out PLINK_QC/$pheno.QC.missingness --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --mendel --out PLINK_QC/$pheno.QC.mend --noweb`;
 	`plink --bfile PLINK_QC/$pheno.forsexQC --check-sex --out PLINK_QC/$pheno.QC.sex --noweb`;
 	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune --noweb`;
+	
+	`king -b PLINK_QC/$pheno.forQC.bed --prefix PLINK_QC/$pheno.forQC`
 }
 
 
