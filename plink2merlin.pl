@@ -203,7 +203,7 @@ makefliplist("$pheno.callrate95.bim", $chipdatadir, $genotypechip);
 
 print "... zero out genotypes with Mendelian errors within the nuclear family\n";
 # do mendelian error check and zero out all probematic genotypes
-`plink --ped $interimdir/$pheno.familyedits.ped --map $interimdir/$pheno.flipped.map --me 1 1 --set-me-missing --make-bed --out $interimdir/$pheno.familyedits.me1-1`;
+`plink --ped $interimdir/$pheno.familyedits.ped --map $interimdir/$pheno.haldane.map --me 1 1 --set-me-missing --make-bed --out $interimdir/$pheno.familyedits.me1-1`;
 
 print "... creating reference population PLINK .frq file\n";
 # create a PLINK-format .frq file for using with --genome --read-freq
@@ -302,7 +302,7 @@ if ($doqc) {
 	`cut -f1,2,6 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatepheno.txt`;
 	`cut -f1,2,5 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatesex.txt`;
 
-	`plink --file $interimdir/adelstein_poc.flipped --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
+	`plink --bfile $interimdir/adelstein_poc.flipped --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
 	`plink --bfile $interimdir/$pheno.callrate95 --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
 
 	print "... running basic QC checks using PLINK\n";
@@ -314,7 +314,7 @@ if ($doqc) {
 	`plink --bfile PLINK_QC/$pheno.forsexQC --check-sex --out PLINK_QC/$pheno.QC.sex --noweb`;
 	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune --noweb`;
 	
-	`king -b PLINK_QC/$pheno.forQC.bed --prefix PLINK_QC/$pheno.forQC`
+	`king -b PLINK_QC/$pheno.forQC.bed --prefix PLINK_QC/$pheno.forQC.king`
 }
 
 
@@ -367,21 +367,23 @@ sub create_update_rsID_names {
 		my $rsid = $varname;
 		$rsid =~ s/exm-//;
 		$rsid =~ s/newrs/rs/;
-		
-		if (!defined $trackrsIDdupes{$rsid}) {
+	
+		if ($chr eq '0') {
+			print $exclude_dup_varnames_handle "$varname\n";
+		} elsif (defined $trackrsIDdupes{$rsid} || defined $trackrsIDdupes{$varname}) {
+			print $exclude_dup_varnames_handle "$varname\n";
+		} elsif (defined $refdata{$varname} && defined $trackrsIDdupes{$refdata{$varname}}) {
+			print $exclude_dup_varnames_handle "$varname\n";
+		} else {
 			if ($varname =~ 'rs') {
 				print $update_rsid_handle "$varname\t$rsid\n";
 				$trackrsIDdupes{$varname} = 1;
 				$trackrsIDdupes{$rsid} = 1;
 			} elsif (defined $refdata{$varname}) {
-				if (!defined $trackrsIDdupes{$refdata{$varname}}) {
-					print $update_rsid_handle "$varname\t$refdata{$varname}\n";
-				} else {
-					$trackrsIDdupes{$refdata{$varname}} = 1;
-				}
-			} 
-		} else {
-			print $exclude_dup_varnames_handle "$varname\n";
+				print $update_rsid_handle "$varname\t$refdata{$varname}\n";
+				$trackrsIDdupes{$refdata{$varname}} = 1;
+				$trackrsIDdupes{$varname} = 1;
+			} 		
 		}
 	}
 	close $raw_map_handle;
