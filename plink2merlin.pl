@@ -302,7 +302,7 @@ if ($doqc) {
 	`cut -f1,2,6 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatepheno.txt`;
 	`cut -f1,2,5 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatesex.txt`;
 
-	`plink --bfile $interimdir/adelstein_poc.flipped --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
+	`plink --bfile $interimdir/$pheno.flipped --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
 	`plink --bfile $interimdir/$pheno.callrate95 --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
 
 	print "... running basic QC checks using PLINK\n";
