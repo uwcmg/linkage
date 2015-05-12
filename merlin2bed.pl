@@ -50,7 +50,7 @@ if ($allchr =~ /T/i || $allchr =~ /Y/i || $allchr =~ /1/) {
 	my $merlinprefix = "$1.chr";			# pheno.dominant.chr10-parametric.tbl
 	my $merlinsuffix = "-$3";
 	
-	for (my $chr=1; $chr<=22; $chr++) {
+	foreach my $chr ((1..22, "X")) {
 		getlinkageregions($rsIDcm2bp, "$merlinprefix$chr$merlinsuffix", $output_handle, $output_extended_handle);
 	}
 } else {

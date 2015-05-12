@@ -67,10 +67,19 @@ if ($genotypechip =~ /CoreExome/i) {
 	$gridfreq_suffix = '.freqs';
 	$updatecMfile = 'allchr.ExomeChip.updatecM.nodups.txt';
 	$updatecMsnplist = 'allchr.ExomeChip.updatecM.snplist';
-	if (system("cut -f1,7 $mendeliandir/ExomeChipComplete/maps/chr*.ExomeChip.map > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
-		die "Can't extract haldane values from $mendeliandir/ExomeChipComplete/chr*.ExomeChip.map: $?";
+	if (system("cut -f1,7 $mendeliandir/ExomeChipComplete/maps/chr1.ExomeChip.map > $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
+		die "Can't extract haldane values from $mendeliandir/ExomeChipComplete/chr1.ExomeChip.map: $?";
 	}
-	if (system("sort -k1 $interimdir/allchr.ExomeChip.updatecM.txt | uniq > $interimdir/allchr.ExomeChip.updatecM.nodups.txt") != 0) {
+	foreach my $chr ((2..22)) {
+		if (system("cut -f1,7 $mendeliandir/ExomeChipComplete/maps/chr$chr.ExomeChip.map >> $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
+			die "Can't extract haldane values from $mendeliandir/ExomeChipComplete/chr$chr.ExomeChip.map: $?";
+		}
+	}
+	if (system("cut -f1,8 $mendeliandir/ExomeChipComplete/maps/chrX.ExomeChip.map >> $interimdir/allchr.ExomeChip.updatecM.txt") != 0) {
+		die "Can't extract haldane values from $mendeliandir/ExomeChipComplete/chrX.ExomeChip.map: $?";			# unfortunately the Rutgers map doesn't have sex-averaged Haldane/map values for the X chromosome, so we need to pull from the female-only column
+	}
+	
+	if (system("sort -k1 $interimdir/allchr.ExomeChip.updatecM.txt | uniq | grep -v 'NA' > $interimdir/allchr.ExomeChip.updatecM.nodups.txt") != 0) {
 		die "Can't get only unique SNPs from $interimdir/allchr.ExomeChip.updatecM.txt: $?";
 	}
 	if (system("cut -f1 $interimdir/allchr.ExomeChip.updatecM.txt > $interimdir/allchr.ExomeChip.updatecM.snplist") != 0) {
@@ -241,7 +250,7 @@ if (! -e "$outdir/$pheno.model") {
 
 # Output linkage file per chromosome
 print "... making linkage files\n";
-for (my $chr=1; $chr<=22; $chr++) {
+foreach my $chr ((1..22, "X")) {
 	print "\tfor chromosome $chr\n";
 	# create ped file
 	`plink --file $interimdir/$pheno.gridonly --chr $chr --recode --output-missing-phenotype 0 --out $interimdir/$pheno.merlin.chr$chr`;
@@ -263,6 +272,7 @@ for (my $chr=1; $chr<=22; $chr++) {
 	`perl -ane \'print \"M \$F[1]\\n\";\' $interimdir/$pheno.merlin.chr$chr.map >> $outdir/$pheno.chr$chr.dat`;
 }
 
+
 print "Merlin format files $pheno.chr*.map $pheno.chr*.ped $pheno.chr*.freq $pheno.chr*.dat $pheno.model are ready in $outdir.\n";
 print "$pheno.model should be edited to fit your model of inheritance\n\n";
 
@@ -271,7 +281,7 @@ print "$pheno.model should be edited to fit your model of inheritance\n\n";
 # create job submission script to run linkage
 open (my $submit_handle, ">", "$outdir/$pheno.sublinkage.sh") or die "Cannot write to $outdir/$pheno.sublinkage.sh: $?.\n";
 print $submit_handle '#$ -S /bin/bash'."\n";
-print $submit_handle '#$ -t 1-22'."\n";
+print $submit_handle '#$ -t 1-23'."\n";
 print $submit_handle '#$ -o .'."\n";
 print $submit_handle '#$ -e .'."\n";
 print $submit_handle '#$ -cwd'."\n\n";
@@ -280,12 +290,20 @@ print $submit_handle '#$ -l h_vmem=12G'."\n\n";
 print $submit_handle 'module load modules modules-init modules-gs gsits-util/latest'."\n";
 print $submit_handle 'module load plink/latest perl/5.14.2 merlin/latest'."\n";
 print $submit_handle "\n";
-print $submit_handle "merlin -d $pheno.chr\${SGE_TASK_ID}.dat -p $pheno.chr\${SGE_TASK_ID}.ped -m $pheno.chr\${SGE_TASK_ID}.map -f $pheno.chr\${SGE_TASK_ID}.freq --model $pheno.model --pdf --prefix $pheno.$model.chr\${SGE_TASK_ID} --tabulate --markerNames\n\n\n";
+print $submit_handle "if [ \${SGE_TASK_ID} -le 22 ]\n";
+print $submit_handle "then\n";
+print $submit_handle "merlin -d $pheno.chr\${SGE_TASK_ID}.dat -p $pheno.chr\${SGE_TASK_ID}.ped -m $pheno.chr\${SGE_TASK_ID}.map -f $pheno.chr\${SGE_TASK_ID}.freq --model $pheno.model --pdf --prefix $pheno.$model.chr\${SGE_TASK_ID} --tabulate --markerNames\n";
+print $submit_handle "elif [ \${SGE_TASK_ID} -eq 23 ]\n";
+print $submit_handle "then\n";
+print $submit_handle "minx -d $pheno.chrX.dat -p $pheno.chrX.ped -m $pheno.chrX.map -f $pheno.chrX.freq --model $pheno.model --pdf --prefix $pheno.$model.chrX --tabulate --markerNames\n";
+print $submit_handle "fi\n\n";
+
 
 print $submit_handle "### in case you need to manually re-run linkage on one of the chromosomes:\n";
-for (my $i=1; $i<=22; $i++) {
+foreach my $i ((1..22)) {
 	print $submit_handle "## merlin -d $pheno.chr$i.dat -p $pheno.chr$i.ped -m $pheno.chr$i.map -f $pheno.chr$i.freq --model $pheno.model --pdf --prefix $pheno.$model.chr$i --tabulate --markerNames\n";
 }
+print $submit_handle "## minx -d $pheno.chrX.dat -p $pheno.chrX.ped -m $pheno.chrX.map -f $pheno.chrX.freq --model $pheno.model --pdf --prefix $pheno.$model.chrX --tabulate --markerNames\n";
 close $submit_handle;
 
 print "\nTo run linkage: cd $outdir; qsub $pheno.sublinkage.sh\n";
@@ -400,7 +418,7 @@ sub makefliplist {
 
 	my %ref_alleles;
 	my ($grid_nvar, $reject_nvar, $ambig_nvar, $flip_nvar, $bim_nvar) = ((0) x 5);
-	for (my $chr=1; $chr<=22; $chr++) {
+	foreach my $chr ((1..22), "X") {
 		open (my $ref_allele_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $?.\n";
 		while (<$ref_allele_handle>) {
 			$_ =~ s/\s+$//;					# Remove line endings
@@ -417,9 +435,10 @@ sub makefliplist {
 	while (<$bim_handle>) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($chr, $rsID, $cM, $b37, $a1, $a2) = split("\t", $_);
-		if ($chr > 22) {
-			last;						# only handling autosomal chromosomes for now
+		if ($chr > 23) {
+			last;						# only handling autosomal and X chromosomes for now
 		}
+
 		$bim_nvar++;
 		if (!defined $ref_alleles{$rsID}) {
 			print STDERR "$rsID on chr$chr is not listed in $chipdatadir/freqs/chr$chr.$genotypechip.freq\n";
@@ -520,7 +539,7 @@ sub create_plinkfrqfile {
 	
 	open (my $plinkfrq_handle, ">", "$outdir/$pheno.ref$refpop.plink.frq") or die "Cannot write to $outdir/$pheno.ref$refpop.plink.frq: $?.\n";
 	print $plinkfrq_handle "CHR\tSNP\tA1\tA2\tMAF\tNCHROBS\n";
-	foreach my $chr ((1..22)) {
+	foreach my $chr ((1..22, "X")) {
 		open (my $input_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $?.\n";
 		while ( <$input_handle> ) {
 			$_ =~ s/\s+$//;					# Remove line endings
