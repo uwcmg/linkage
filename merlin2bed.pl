@@ -100,7 +100,7 @@ sub getlinkageregions {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my @line = split("\t", $_);
 		my ($chr, $gmap, $snpname) = @line[0..2];
-		if ($line[3] =~ "[Pairs]") {		# if this is a non-parametric file, it'll contain values for ALL and PAIRS statistics
+		if ($line[3] =~ /\[Pairs\]/) {		# if this is a non-parametric file, it'll contain values for ALL and PAIRS statistics
 			last;
 		}
 		if ($chr eq 'na') {
