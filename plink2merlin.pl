@@ -329,6 +329,8 @@ if ($doqc) {
 	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.het --noweb`;
 	`plink --bfile PLINK_QC/$pheno.forQC --missing --out PLINK_QC/$pheno.QC.missingness --noweb`;
 	`plink --bfile PLINK_QC/$pheno.forQC --mendel --out PLINK_QC/$pheno.QC.mend --noweb`;
+	
+	`plink --bfile $interimdir/$pheno.allvarrsIDs --nonfounders --exclude $interimdir/remove_dupe_variants.txt --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out PLINK_QC/$pheno.forsexQC`;
 	`plink --bfile PLINK_QC/$pheno.forsexQC --check-sex --out PLINK_QC/$pheno.QC.sex --noweb`;
 	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune --noweb`;
 	
