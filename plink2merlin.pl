@@ -13,7 +13,7 @@ use Pod::Usage;
 use File::Copy;
 
 my $mendeliandir = '/net/grc/vol1/mendelian_projects/mendelian_analysis/references';
-my ($rawgenodir, $genotypechip, $refpop, $pheno, $model, $familyedits, $interimdir, $outdir, $recode12, $help);
+my ($rawgenodir, $genotypechip, $refpop, $pheno, $model, $familyedits, $interimdir, $outdir, $recode12, $callrate, $help);
 my $doqc = '';
 
 GetOptions(
@@ -27,6 +27,7 @@ GetOptions(
 	'outdir=s' => \$outdir,
 	'doqc' => \$doqc,
 	'recode12' => \$recode12,
+	'maxmissing:s' => \$callrate,
 	'help|?' => \$help,
 ) or pod2usage(-verbose => 1) && exit;
 pod2usage(-verbose=>2, -exitval=>1) if $help;
@@ -47,7 +48,10 @@ if (!defined $rawgenodir) {
 	pod2usage(-exitval=>2, -verbose=>1, -message => "$0: --model not defined\n");
 } elsif (!defined $familyedits) {
 	pod2usage(-exitval=>2, -verbose=>1, -message => "$0: --familyedits not defined\n");
+} elsif (!defined $callrate) {
+	$callrate = 0.05;
 }
+
 
 
 $rawgenodir = remove_trailing_slash_dir($rawgenodir);
@@ -188,7 +192,7 @@ print "... creating PLINK files: updating family information\n";
 `plink --bfile $interimdir/$pheno.updateparents --extract $interimdir/rsIDvariantsonly.snplist --exclude $interimdir/remove_dupe_variants.txt --make-bed --out $interimdir/$pheno.allvarrsIDs`;
 
 # do some basic QC: minimum 95% genotyping rate
-`plink --bfile $interimdir/$pheno.allvarrsIDs --geno 0.05 --nonfounders --exclude $interimdir/remove_dupe_variants.txt --make-bed --out $interimdir/$pheno.callrate95`;
+`plink --bfile $interimdir/$pheno.allvarrsIDs --geno $callrate --nonfounders --exclude $interimdir/remove_dupe_variants.txt --make-bed --out $interimdir/$pheno.callrate95`;
 
 print "... creating PLINK files: determining SNPs that need allele flipping\n";
 # flip alleles in genotype file to match the 1000 Genomes reference file
@@ -217,6 +221,34 @@ print "... zero out genotypes with Mendelian errors within the nuclear family\n"
 print "... creating reference population PLINK .frq file\n";
 # create a PLINK-format .frq file for using with --genome --read-freq
 create_plinkfrqfile($griddatadir, $chipdatadir, $refpop, $pheno, $outdir, $genotypechip);
+
+
+if ($doqc) {
+	print "\n";
+	# fix phenotype codes and make file for general whole-genome QC
+	print "... creating PLINK file for whole-genome QC metrics\n";
+	`bash -c '[ -d PLINK_QC ] || mkdir PLINK_QC'`;
+	`cut -f1,2,6 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatepheno.txt`;
+	`cut -f1,2,5 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatesex.txt`;
+
+	`plink --bfile $interimdir/$pheno.flipped --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
+	`plink --bfile $interimdir/$pheno.callrate95 --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
+
+	print "... running basic QC checks using PLINK\n";
+	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --genome --out PLINK_QC/$pheno.QC.IBD --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --indep-pairwise 50 5 0.5 --out PLINK_QC/$pheno.forQC --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.het --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --missing --out PLINK_QC/$pheno.QC.missingness --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --mendel --out PLINK_QC/$pheno.QC.mend --noweb`;
+	
+	`plink --bfile $interimdir/$pheno.allvarrsIDs --nonfounders --exclude $interimdir/remove_dupe_variants.txt --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out PLINK_QC/$pheno.forsexQC`;
+	`plink --bfile PLINK_QC/$pheno.forsexQC --check-sex --out PLINK_QC/$pheno.QC.sex --noweb`;
+	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune --noweb`;
+	
+	`king -b PLINK_QC/$pheno.forQC.bed --prefix PLINK_QC/$pheno.forQC.king`
+}
+
+
 
 
 # extract only variants in the grid files
@@ -310,33 +342,6 @@ print "\nTo run linkage: cd $outdir; qsub $pheno.sublinkage.sh\n";
 print "To create BED file summarizing linkage results, use /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/merlin2bed.pl --cm2bp $outdir/$pheno.merlin.cm2bp.map --merlintbl $outdir/$pheno.$model.chr1-parametric.tbl --allchr T --cutofflod 0 --usechr T --outprefix $pheno\n";
 print "Linkage plots are created by Merlin: see $outdir/$pheno.$model.chr*.pdf\n";
 print "Linkage result tables are created by Merlin: see $outdir/$pheno.$model.chr*-parametric.tbl\n";
-
-
-if ($doqc) {
-	print "\n";
-	# fix phenotype codes and make file for general whole-genome QC
-	print "... creating PLINK file for whole-genome QC metrics\n";
-	`bash -c '[ -d PLINK_QC ] || mkdir PLINK_QC'`;
-	`cut -f1,2,6 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatepheno.txt`;
-	`cut -f1,2,5 $familyedits | sed 's/[!#]//g' > PLINK_QC/$pheno.updatesex.txt`;
-
-	`plink --bfile $interimdir/$pheno.flipped --make-bed --pheno PLINK_QC/$pheno.updatepheno.txt --out PLINK_QC/$pheno.forQC`;
-	`plink --bfile $interimdir/$pheno.callrate95 --make-bed --update-sex PLINK_QC/$pheno.updatesex.txt --out PLINK_QC/$pheno.forsexQC`;
-
-	print "... running basic QC checks using PLINK\n";
-	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --genome --out PLINK_QC/$pheno.QC.IBD --noweb`;
-	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --indep-pairwise 50 5 0.5 --out PLINK_QC/$pheno.forQC --noweb`;
-	`plink --bfile PLINK_QC/$pheno.forQC --read-freq $outdir/$pheno.ref$refpop.plink.frq --het --out PLINK_QC/$pheno.QC.het --noweb`;
-	`plink --bfile PLINK_QC/$pheno.forQC --missing --out PLINK_QC/$pheno.QC.missingness --noweb`;
-	`plink --bfile PLINK_QC/$pheno.forQC --mendel --out PLINK_QC/$pheno.QC.mend --noweb`;
-	
-	`plink --bfile $interimdir/$pheno.allvarrsIDs --nonfounders --exclude $interimdir/remove_dupe_variants.txt --flip $interimdir/rsIDs.toflip.txt --exclude $interimdir/rsIDs.toexclude.txt --make-bed --out PLINK_QC/$pheno.forsexQC`;
-	`plink --bfile PLINK_QC/$pheno.forsexQC --check-sex --out PLINK_QC/$pheno.QC.sex --noweb`;
-	`plink --bfile PLINK_QC/$pheno.forQC --extract PLINK_QC/$pheno.forQC.prune.in --make-bed --out PLINK_QC/$pheno.QC.LDprune --noweb`;
-	
-	`king -b PLINK_QC/$pheno.forQC.bed --prefix PLINK_QC/$pheno.forQC.king`
-}
-
 
 
 
@@ -546,6 +551,9 @@ sub create_plinkfrqfile {
 		while ( <$input_handle> ) {
 			$_ =~ s/\s+$//;					# Remove line endings
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_);  	# order of population allele freqs: $AFR, $AMR, $ASN, $EUR, $OVERALL 
+			if ($popfreqs[$refpopcol-5] eq "") {
+				$popfreqs[$refpopcol-5] = 0;
+			}
 			my $reffreq = 1 - $popfreqs[$refpopcol-5];
 			print $plinkfrq_handle "$chr\t$rsID\t$ref\t$alt\t$popfreqs[$refpopcol-5]\t1000\n";
 		}
