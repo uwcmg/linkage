@@ -13,7 +13,7 @@
        --rawgenodir directory
                    path to genotypes in PLINK format as outputted by UWCMG pipeline (likely under project/sample_qc/PLINK*)
 
-       --chip CytoChip|ExomeChip
+       --chip CytoChip|ExomeChip|Omni2_5|OmniExpress
                    name of genotyping chip
 
        --refpop EUR|AFR|AMR|ASN
