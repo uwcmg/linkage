@@ -207,8 +207,8 @@ makefliplist("$pheno.callrate95.bim", $chipdatadir, $genotypechip);
 # add in any dummy ancestors and exclude people
 # if (defined $familyedits) {
 	print "\tPedigree edits provided ($familyedits); making changes.\n";
-	if (system("perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.haldane.ped --out $interimdir/$pheno.familyedits.ped") != 0) {
-		die "Could not run: perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.haldane.ped --out $interimdir/$pheno.familyedits.ped: $?";
+	if (system("perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.haldane.ped --out $interimdir/$pheno.familyedits.ped") != 0) {
+		die "Could not run: perl /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/linkage/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.haldane.ped --out $interimdir/$pheno.familyedits.ped: $?";
 	}
 # } else {
 # 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
@@ -339,7 +339,7 @@ print $submit_handle "## minx -d $pheno.chrX.dat -p $pheno.chrX.ped -m $pheno.ch
 close $submit_handle;
 
 print "\nTo run linkage: cd $outdir; qsub $pheno.sublinkage.sh\n";
-print "To create BED file summarizing linkage results, use /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/merlin2bed.pl --cm2bp $outdir/$pheno.merlin.cm2bp.map --merlintbl $outdir/$pheno.$model.chr1-parametric.tbl --allchr T --cutofflod 0 --usechr T --outprefix $pheno\n";
+print "To create BED file summarizing linkage results, use /net/grc/vol1/mendelian_projects/mendelian_analysis/module_linkage/linkage/merlin2bed.pl --cm2bp $outdir/$pheno.merlin.cm2bp.map --merlintbl $outdir/$pheno.$model.chr1-parametric.tbl --allchr T --cutofflod 0 --usechr T --outprefix $pheno\n";
 print "Linkage plots are created by Merlin: see $outdir/$pheno.$model.chr*.pdf\n";
 print "Linkage result tables are created by Merlin: see $outdir/$pheno.$model.chr*-parametric.tbl\n";
 
