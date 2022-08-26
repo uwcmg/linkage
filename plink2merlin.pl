@@ -12,7 +12,7 @@ use Getopt::Long;
 use Pod::Usage;
 use File::Copy;
 
-my $mendeliandir = '/net/grc/vol1/mendelian_projects/mendelian_analysis/references';
+my $mendeliandir = '/net/grc/vol6/mendelian_projects/mendelian_analysis/references';
 my ($rawgenodir, $genotypechip, $refpop, $pheno, $model, $familyedits, $interimdir, $outdir, $recode12, $callrate, $help);
 my $doqc = '';
 
