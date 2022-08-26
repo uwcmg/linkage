@@ -282,7 +282,7 @@ if (! -e "$outdir/$pheno.model") {
 
 # Output linkage file per chromosome
 print "... making linkage files\n";
-foreach my $chr ((1..22, "X")) {
+foreach my $chr ((1..23)) {
 	print "\tfor chromosome $chr\n";
 	# create ped file
 	`plink --file $interimdir/$pheno.gridonly --chr $chr --recode --output-missing-phenotype 0 --out $interimdir/$pheno.merlin.chr$chr`;
@@ -369,7 +369,7 @@ sub create_update_rsID_names {
 	
 	# read through bim file to get alleles and position; get likely rsID match from the reference files
 	my %refdata;
-	for (my $chr=1; $chr<=22; $chr++) {
+	for (my $chr=1; $chr<=23; $chr++) {
 		open (my $refdata_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $!.\n";
 		while ( <$refdata_handle> ) {
 			$_ =~ s/\s+$//;					# Remove line endings
