@@ -157,7 +157,7 @@ if ($genotypechip =~ /CoreExome/i) {
 
 
 # read contents of the sample_qc/PLINK* directory and get names of map and ped files
-opendir my($dir_handle), $rawgenodir or die "Couldn't open dir $mendeliandir: $!";
+opendir my($dir_handle), $rawgenodir or print "Couldn't open dir $mendeliandir: $!";
 my @rawgenofiles = readdir $dir_handle;
 closedir $dir_handle;
 my ($rawgenomap, $rawgenoped, $rawgenostem);
@@ -212,7 +212,7 @@ makefliplist("$pheno.callrate95.bim", $chipdatadir, $genotypechip);
 		die "Could not run: perl $linkagescriptdir/edit_linkage_family_info.pl --edits $familyedits --pedfile $interimdir/$pheno.haldane.ped --out $interimdir/$pheno.familyedits.ped: $?";
 	}
 # } else {
-# 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or die "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
+# 	copy("$interimdir/$pheno.updateparents.me1-1.ped", "$interimdir/$pheno.merlin.ped") or print "Failed to copy $interimdir/$pheno.updateparents.me1-1.ped to $interimdir/$pheno.merlin.ped\n";
 # }
 
 print "... zero out genotypes with Mendelian errors within the nuclear family\n";
@@ -257,7 +257,7 @@ print "... extracting the linkage grid markers\n";
 `plink --bfile $interimdir/$pheno.familyedits.me1-1 --extract $interimdir/gridrsIDvariantsonly.snplist --recode --out $interimdir/$pheno.gridonly`;
 
 # create map file for generating per-chromosome merlin format files
-copy("$interimdir/$pheno.gridonly.map", "$interimdir/$pheno.merlin.map") or die "Failed to copy $interimdir/$pheno.gridonly.map to $interimdir/$pheno.merlin.map\n";
+copy("$interimdir/$pheno.gridonly.map", "$interimdir/$pheno.merlin.map") or print "Failed to copy $interimdir/$pheno.gridonly.map to $interimdir/$pheno.merlin.map\n";
 # add code to check number of variants in $pheno.gridonly.map
 # if ($nvar < 4500 && $genotypechip =~ /ExomeChip/i) {
 # 	print "... ... WARNING: only $nvar variants are in the linkage grid files and have genotypes.  Expect ~4500-5500\n";
@@ -266,7 +266,7 @@ copy("$interimdir/$pheno.gridonly.map", "$interimdir/$pheno.merlin.map") or die 
 # }
 
 # create cm2bp file for summarizing linkage results in a BED format using merlin2bed.pl
-copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or die "Failed to copy $interimdir/$pheno.merlin.map to $outdir/$pheno.merlin.cm2bp.map\n";
+copy("$interimdir/$pheno.merlin.map", "$outdir/$pheno.merlin.cm2bp.map") or print "Failed to copy $interimdir/$pheno.merlin.map to $outdir/$pheno.merlin.cm2bp.map\n";
 
 
 # create a default model file if one doesn't already exist
@@ -289,9 +289,9 @@ foreach my $chr ((1..23)) {
 	`plink --file $interimdir/$pheno.gridonly --chr $chr --recode --output-missing-phenotype 0 --out $interimdir/$pheno.merlin.chr$chr`;
 	if (defined $recode12) {
 		`plink --file $interimdir/$pheno.gridonly --chr $chr --recode12 --output-missing-phenotype 0 --out $interimdir/$pheno.merlin12.chr$chr`;
-		move("$interimdir/$pheno.merlin12.chr$chr.ped", "$outdir/$pheno.12.chr$chr.ped") or die "Failed to move $interimdir/$pheno.merlin12.chr$chr.ped to $outdir/$pheno.12.chr$chr.ped\n";
+		move("$interimdir/$pheno.merlin12.chr$chr.ped", "$outdir/$pheno.12.chr$chr.ped") or print "Failed to move $interimdir/$pheno.merlin12.chr$chr.ped to $outdir/$pheno.12.chr$chr.ped\n";
 	}
-	move("$interimdir/$pheno.merlin.chr$chr.ped", "$outdir/$pheno.chr$chr.ped") or die "Failed to move $interimdir/$pheno.merlin.chr$chr.ped to $outdir/$pheno.chr$chr.ped\n";
+	move("$interimdir/$pheno.merlin.chr$chr.ped", "$outdir/$pheno.chr$chr.ped") or print "Failed to move $interimdir/$pheno.merlin.chr$chr.ped to $outdir/$pheno.chr$chr.ped\n";
 	
 	# create map file 
 	`cut -f1-3 $interimdir/$pheno.merlin.chr$chr.map > $outdir/$pheno.chr$chr.map`;
@@ -312,7 +312,7 @@ print "$pheno.model should be edited to fit your model of inheritance\n\n";
 
 
 # create job submission script to run linkage
-open (my $submit_handle, ">", "$outdir/$pheno.sublinkage.sh") or die "Cannot write to $outdir/$pheno.sublinkage.sh: $?.\n";
+open (my $submit_handle, ">", "$outdir/$pheno.sublinkage.sh") or print "Cannot write to $outdir/$pheno.sublinkage.sh: $?.\n";
 print $submit_handle '#$ -S /bin/bash'."\n";
 print $submit_handle '#$ -t 1-23'."\n";
 print $submit_handle '#$ -o .'."\n";
@@ -337,7 +337,6 @@ foreach my $i ((1..22)) {
 	print $submit_handle "## merlin -d $pheno.chr$i.dat -p $pheno.chr$i.ped -m $pheno.chr$i.map -f $pheno.chr$i.freq --model $pheno.model --pdf --prefix $pheno.$model.chr$i --tabulate --markerNames\n";
 }
 print $submit_handle "## minx -d $pheno.chrX.dat -p $pheno.chrX.ped -m $pheno.chrX.map -f $pheno.chrX.freq --model $pheno.model --pdf --prefix $pheno.$model.chrX --tabulate --markerNames\n";
-close $submit_handle;
 
 print "\nTo run linkage: cd $outdir; qsub $pheno.sublinkage.sh\n";
 print "To create BED file summarizing linkage results, use $linkagescriptdir/merlin2bed.pl --cm2bp $outdir/$pheno.merlin.cm2bp.map --merlintbl $outdir/$pheno.$model.chr1-parametric.tbl --allchr T --cutofflod 0 --usechr T --outprefix $pheno\n";
@@ -345,6 +344,11 @@ print "Linkage plots are created by Merlin: see $outdir/$pheno.$model.chr*.pdf\n
 print "Linkage result tables are created by Merlin: see $outdir/$pheno.$model.chr*-parametric.tbl\n";
 
 
+print $submit_handle "\n#To run linkage: cd $outdir; qsub $pheno.sublinkage.sh\n";
+print $submit_handle "#To create BED file summarizing linkage results, use $linkagescriptdir/merlin2bed.pl --cm2bp $outdir/$pheno.merlin.cm2bp.map --merlintbl $outdir/$pheno.$model.chr1-parametric.tbl --allchr T --cutofflod 0 --usechr T --outprefix $pheno\n";
+print $submit_handle "#Linkage plots are created by Merlin: see $outdir/$pheno.$model.chr*.pdf\n";
+print $submit_handle "#Linkage result tables are created by Merlin: see $outdir/$pheno.$model.chr*-parametric.tbl\n";
+close $submit_handle;
 
 
 
@@ -371,7 +375,7 @@ sub create_update_rsID_names {
 	# read through bim file to get alleles and position; get likely rsID match from the reference files
 	my %refdata;
 	for (my $chr=1; $chr<=23; $chr++) {
-		open (my $refdata_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $!.\n";
+		open (my $refdata_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $!.\n";
 		while ( <$refdata_handle> ) {
 			$_ =~ s/\s+$//;					# Remove line endings
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_); 
@@ -384,9 +388,9 @@ sub create_update_rsID_names {
 	}
 	
 	my %trackrsIDdupes;
-	open (my $update_rsid_handle, ">", "$interimdir/update_rsIDs.txt") or die "Cannot write to $interimdir/update_rsIDs.txt: $!.\n";
-	open (my $exclude_dup_varnames_handle, ">", "$interimdir/remove_dupe_variants.txt") or die "Cannot write to $interimdir/remove_dupe_variants.txt: $!.\n";
-	open (my $raw_map_handle, "$interimdir/originalgenotypes.bim") or die "Cannot read $interimdir/originalgenotypes.bim: $!.\n";
+	open (my $update_rsid_handle, ">", "$interimdir/update_rsIDs.txt") or print "Cannot write to $interimdir/update_rsIDs.txt: $!.\n";
+	open (my $exclude_dup_varnames_handle, ">", "$interimdir/remove_dupe_variants.txt") or print "Cannot write to $interimdir/remove_dupe_variants.txt: $!.\n";
+	open (my $raw_map_handle, "$interimdir/originalgenotypes.bim") or print "Cannot read $interimdir/originalgenotypes.bim: $!.\n";
 	while ( <$raw_map_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($chr, $varname, $cM, $bp, @alleles) = split("\t", $_);
@@ -427,7 +431,7 @@ sub makefliplist {
 	my %ref_alleles;
 	my ($grid_nvar, $reject_nvar, $ambig_nvar, $flip_nvar, $bim_nvar) = ((0) x 5);
 	foreach my $chr ((1..22), "X") {
-		open (my $ref_allele_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $?.\n";
+		open (my $ref_allele_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $?.\n";
 		while (<$ref_allele_handle>) {
 			$_ =~ s/\s+$//;					# Remove line endings
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_); 
@@ -437,9 +441,9 @@ sub makefliplist {
 		close $ref_allele_handle;
 	}
 	
-	open (my $fliplist_handle, ">", "$interimdir/rsIDs.toflip.txt") or die "Cannot write to $interimdir/rsIDs.toflip.txt: $?.\n";
-	open (my $ambiguouslist_handle, ">", "$interimdir/rsIDs.toexclude.txt") or die "Cannot write to $interimdir/rsIDs.toexclude.txt: $?.\n";
-	open (my $bim_handle, "$interimdir/$bimfile") or die "Cannot read $interimdir/$bimfile: $?.\n";
+	open (my $fliplist_handle, ">", "$interimdir/rsIDs.toflip.txt") or print "Cannot write to $interimdir/rsIDs.toflip.txt: $?.\n";
+	open (my $ambiguouslist_handle, ">", "$interimdir/rsIDs.toexclude.txt") or print "Cannot write to $interimdir/rsIDs.toexclude.txt: $?.\n";
+	open (my $bim_handle, "$interimdir/$bimfile") or print "Cannot read $interimdir/$bimfile: $?.\n";
 	while (<$bim_handle>) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($chr, $rsID, $cM, $b37, $a1, $a2) = split("\t", $_);
@@ -507,7 +511,7 @@ sub create_merlinfrqfile {
 	}
 	
 	my %inlinkage;	
-	open (my $map_handle, "$outdir/$pheno.chr$chr.map") or die "Cannot read $outdir/$pheno.chr$chr.map: $?.\n";
+	open (my $map_handle, "$outdir/$pheno.chr$chr.map") or print "Cannot read $outdir/$pheno.chr$chr.map: $?.\n";
 	while ( <$map_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($chr, $rsid, $haldane) = split("\t", $_);
@@ -515,8 +519,8 @@ sub create_merlinfrqfile {
 	}
 	close $map_handle;
 	
-	open (my $merlinfrq_handle, ">", "$outdir/$pheno.chr$chr.freq") or die "Cannot write to $outdir/$pheno.chr$chr.freq: $?.\n";
-	open (my $input_handle, "$griddatadir/freqs/$gridfreq_prefix$chr$gridfreq_suffix") or die "Cannot read $griddatadir/freqs/$gridfreq_prefix$chr$gridfreq_suffix: $?.\n";
+	open (my $merlinfrq_handle, ">", "$outdir/$pheno.chr$chr.freq") or print "Cannot write to $outdir/$pheno.chr$chr.freq: $?.\n";
+	open (my $input_handle, "$griddatadir/freqs/$gridfreq_prefix$chr$gridfreq_suffix") or print "Cannot read $griddatadir/freqs/$gridfreq_prefix$chr$gridfreq_suffix: $?.\n";
 	while ( <$input_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_);  	# order of population allele freqs: $AFR, $AMR, $ASN, $EUR, $OVERALL 
@@ -545,10 +549,10 @@ sub create_plinkfrqfile {
 		}
 	}
 	
-	open (my $plinkfrq_handle, ">", "$outdir/$pheno.ref$refpop.plink.frq") or die "Cannot write to $outdir/$pheno.ref$refpop.plink.frq: $?.\n";
+	open (my $plinkfrq_handle, ">", "$outdir/$pheno.ref$refpop.plink.frq") or print "Cannot write to $outdir/$pheno.ref$refpop.plink.frq: $?.\n";
 	print $plinkfrq_handle "CHR\tSNP\tA1\tA2\tMAF\tNCHROBS\n";
 	foreach my $chr ((1..22, "X")) {
-		open (my $input_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or die "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $?.\n";
+		open (my $input_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $?.\n";
 		while ( <$input_handle> ) {
 			$_ =~ s/\s+$//;					# Remove line endings
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_);  	# order of population allele freqs: $AFR, $AMR, $ASN, $EUR, $OVERALL 
