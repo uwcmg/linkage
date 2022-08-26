@@ -50,7 +50,7 @@ if ($allchr =~ /T/i || $allchr =~ /Y/i || $allchr =~ /1/) {
 	my $merlinprefix = "$1.chr";			# pheno.dominant.chr10-parametric.tbl
 	my $merlinsuffix = "-$3";
 	
-	foreach my $chr ((1..22, "X")) {
+	foreach my $chr ((1..23)) {
 		getlinkageregions($rsIDcm2bp, "$merlinprefix$chr$merlinsuffix", $output_handle, $output_extended_handle);
 	}
 } else {
@@ -70,7 +70,7 @@ print "Created $outprefix.bed and $outprefix.detail.tsv to summarize results of 
 sub getlinkageregions {
 	my ($rsIDcm2bp, $merlintbl, $output_handle, $output_extended_handle) = @_;
 	my %map;
-	open (my $plink_handle, "$rsIDcm2bp") or die "Cannot read $rsIDcm2bp: $!.\n";
+	open (my $plink_handle, "$rsIDcm2bp") or print "Cannot read $rsIDcm2bp: $!.\n";
 	while ( <$plink_handle> ) {
 		$_ =~ s/\s+$//;					# Remove line endings
 		my ($chr, $snpname, $cm, $pos) = split("\t", $_);
@@ -84,7 +84,7 @@ sub getlinkageregions {
 	my @snpinfo = ((0) x 3);		# start snp, end snp, prevsnp
 	my @lodinfo = ((0) x 3);		# start lod, end lod, prevlod
 	
-	open (my $merlintbl_handle, "$merlintbl") or die "Cannot read $merlintbl: $!.\n";
+	open (my $merlintbl_handle, "$merlintbl") or print "Cannot read $merlintbl: $!.\n";
 	my $headerline = <$merlintbl_handle>;
 	my @header = split("\t", $headerline);
 	my ($lodcolumn, $analysiscol);
