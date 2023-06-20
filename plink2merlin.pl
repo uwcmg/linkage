@@ -376,6 +376,9 @@ sub create_update_rsID_names {
 	my %refdata;
 	for (my $chr=1; $chr<=23; $chr++) {
 		open (my $refdata_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $!.\n";
+  		if (!$refdata_handle && $chr == 23) { 
+    			open (my $refdata_handle, "$chipdatadir/freqs/chrX.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chrX.$genotypechip.freq: $!.\n";
+    		}
 		while ( <$refdata_handle> ) {
 			$_ =~ s/\s+$//;					# Remove line endings
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_); 
