@@ -374,11 +374,16 @@ sub create_update_rsID_names {
 	
 	# read through bim file to get alleles and position; get likely rsID match from the reference files
 	my %refdata;
-	for (my $chr=1; $chr<=23; $chr++) {
-		open (my $refdata_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $!.\n";
-  		if (!$refdata_handle && $chr == 23) { 
-    			open (my $refdata_handle, "$chipdatadir/freqs/chrX.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chrX.$genotypechip.freq: $!.\n";
-    		}
+	for (my $chr=1; $chr<=22; $chr++) {
+   		if ($chr == 23) { 
+				if (-e "$chipdatadir/freqs/chrX.$genotypechip.freq") {
+    				open (my $refdata_handle, "$chipdatadir/freqs/chrX.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chrX.$genotypechip.freq: $!.\n";
+				} elsif (-e "$chipdatadir/freqs/chr23.$genotypechip.freq") {
+					open (my $refdata_handle, "$chipdatadir/freqs/chr23.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chr23.$genotypechip.freq: $!.\n";
+				}
+    		} else {
+				open (my $refdata_handle, "$chipdatadir/freqs/chr$chr.$genotypechip.freq") or print "Cannot read $chipdatadir/freqs/chr$chr.$genotypechip.freq: $!.\n";
+			}
 		while ( <$refdata_handle> ) {
 			$_ =~ s/\s+$//;					# Remove line endings
 			my ($SNPid, $rsID, $b37, $ref, $alt, @popfreqs) = split("\t", $_); 
