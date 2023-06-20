@@ -12,8 +12,8 @@ use Getopt::Long;
 use Pod::Usage;
 use File::Copy;
 
-my $mendeliandir = '/net/grc/vol6/mendelian_projects/mendelian_analysis/references';
-my $linkagescriptdir = '/net/grc/vol6/mendelian_projects/mendelian_analysis/module_linkage/linkage';
+my $mendeliandir = '/net/nwgc/vol1/mendelian_projects/mendelian_analysis/references';
+my $linkagescriptdir = '/net/nwgc/vol1/mendelian_projects/mendelian_analysis/module_linkage/linkage';
 my ($rawgenodir, $genotypechip, $refpop, $pheno, $model, $familyedits, $interimdir, $outdir, $recode12, $callrate, $help);
 my $doqc = '';
 
@@ -702,14 +702,14 @@ This script assumes the following files are present in the current directory.
 
 
 	perl plink2merlin.pl 
-		--rawgenodir /net/grc/vol1/mendelian_projects/pheno/sample_qc/PLINK_100413_0958 
+		--rawgenodir /net/nwgc/vol1/mendelian_projects/pheno/sample_qc/PLINK_100413_0958 
 		--chip ExomeChip
 		--refpop EUR
 		--pheno pheno
 		--model dominant
 		--familyedits pheno.pedchanges.txt
-		--interimdir /net/grc/vol1/mendelian_projects/myphenotype/ngs_analysis/linkage/temp
-		--outdir /net/grc/vol1/mendelian_projects/myphenotype/ngs_analysis/linkage/merlin
+		--interimdir /net/nwgc/vol1/mendelian_projects/myphenotype/ngs_analysis/linkage/temp
+		--outdir /net/nwgc/vol1/mendelian_projects/myphenotype/ngs_analysis/linkage/merlin
 
 
 =head1 AUTHOR
